@@ -152,6 +152,57 @@ Run the entire process in one command:
 ```bash
 # Process a single asset through all phases
 twelve-labs-sa process-all video.mp4 --title "Complete Demo" --output-dir ./output
+# or using the tl alias:
+tl process-all video.mp4 --title "Complete Demo" --output-dir ./output
+```
+
+### Batch Processing
+
+Process multiple files from a directory or ZIP file:
+
+```bash
+# Process all files in a directory
+tl batch process-batch /path/to/files --recursive
+
+# Process specific file types
+tl batch process-batch /path/to/files --file-types "mp4,avi,mov"
+
+# Process ZIP file
+tl batch process-batch archive.zip --output-dir batch_results
+```
+
+### Vector Store Inspection
+
+Inspect the internal vector store state:
+
+```bash
+# View all vectors in the store
+tl inspect vector-store
+
+# Export vector store data
+tl inspect vector-store --output vector_store.json
+
+# Inspect specific embedding
+tl inspect embeddings --asset-id asset_001
+
+# View all embeddings with similarity scores
+tl inspect embeddings
+```
+
+### Enhanced Data Export
+
+Export embeddings, search terms, and metadata:
+
+```bash
+# Export all data for a file
+tl output export-data video.mp4 --include-embeddings --format json
+
+# Export in different formats
+tl output export-data video.mp4 --format csv
+tl output export-data video.mp4 --format yaml
+
+# Export search results with embeddings
+tl output search-export "family picnic" --limit 10 --format json
 ```
 
 ### Modality Information
@@ -192,6 +243,17 @@ twelve-labs-sa / tl
 │   └── store - Store processed data in databases
 ├── phase5 (Search Index Creation)
 │   └── create-index - Create search index entry
+├── batch - Batch processing operations
+│   └── process-batch - Process multiple files from directory or ZIP
+├── inspect - Inspect internal state and data
+│   ├── vector-store - Inspect vector store contents
+│   └── embeddings - Inspect embedding data and similarities
+├── output - Enhanced output and data export
+│   ├── export-data - Export all data for a processed file
+│   └── search-export - Export search results with embeddings
+├── spec - Specification compliance demonstration
+│   ├── compliance-demo - Demonstrate spec compliance
+│   └── process-asset - Process specific asset
 └── process-all - Run complete process
 ```
 

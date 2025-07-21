@@ -767,6 +767,24 @@ def spec():
     pass
 
 
+@main.group()
+def batch():
+    """Batch processing operations."""
+    pass
+
+
+@main.group()
+def inspect():
+    """Inspect internal state and data."""
+    pass
+
+
+@main.group()
+def output():
+    """Enhanced output and data export."""
+    pass
+
+
 @spec.command()
 @click.option('--output-dir', default='spec_demo_output', help='Output directory for demo results')
 def compliance_demo(output_dir):
@@ -963,6 +981,494 @@ def compliance_demo(output_dir):
     console.print("✅ Labeler system functional")
     console.print("✅ Text metadata generation operational")
     console.print("✅ Asset processing capabilities verified")
+
+
+@batch.command()
+@click.argument('input_path', type=click.Path(exists=True))
+@click.option('--output-dir', '-o', default='batch_output', help='Output directory for results')
+@click.option('--recursive', '-r', is_flag=True, help='Process directories recursively')
+@click.option('--file-types', default='mp4,avi,mov,mkv,webm,mp3,wav,aac,flac,m4a,txt,md,json,jpg,jpeg,png,gif,bmp', help='Comma-separated list of file extensions to process')
+def process_batch(input_path: str, output_dir: str, recursive: bool, file_types: str):
+    """Process multiple files in batch from a directory or zip file."""
+    console.print(Panel(f"[bold blue]Batch Processing[/bold blue]\n[bold]Input:[/bold] {input_path}", title="Batch Process"))
+    
+    input_path_obj = Path(input_path)
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+    
+    # Parse file types
+    allowed_extensions = {f".{ext.strip()}" for ext in file_types.split(',')}
+    
+    files_to_process = []
+    
+    if input_path_obj.is_file() and input_path_obj.suffix.lower() == '.zip':
+        # Process zip file
+        console.print("📦 Processing ZIP file...")
+        import zipfile
+        with zipfile.ZipFile(input_path_obj, 'r') as zip_ref:
+            for file_info in zip_ref.filelist:
+                if any(file_info.filename.lower().endswith(ext) for ext in allowed_extensions):
+                    files_to_process.append(file_info.filename)
+        console.print(f"📁 Found {len(files_to_process)} files in ZIP")
+    elif input_path_obj.is_dir():
+        # Process directory
+        console.print("📁 Processing directory...")
+        if recursive:
+            pattern = "**/*"
+        else:
+            pattern = "*"
+        
+        for file_path in input_path_obj.glob(pattern):
+            if file_path.is_file() and file_path.suffix.lower() in allowed_extensions:
+                files_to_process.append(str(file_path))
+        console.print(f"📁 Found {len(files_to_process)} files in directory")
+    else:
+        console.print("[red]Error: Input must be a directory or ZIP file[/red]")
+        return
+    
+    if not files_to_process:
+        console.print("[yellow]No files found to process[/yellow]")
+        return
+    
+    # Process files
+    results = []
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"Processing {len(files_to_process)} files...", total=len(files_to_process))
+        
+        for i, file_path in enumerate(files_to_process):
+            progress.update(task, description=f"Processing {file_path} ({i+1}/{len(files_to_process)})")
+            
+            try:
+                # Process each file through the pipeline
+                result = process_single_file(file_path, output_path)
+                results.append(result)
+            except Exception as e:
+                console.print(f"[red]Error processing {file_path}: {e}[/red]")
+            
+            progress.update(task, advance=1)
+    
+    # Save batch results
+    batch_summary = {
+        "batch_info": {
+            "input_path": input_path,
+            "output_dir": str(output_path),
+            "total_files": len(files_to_process),
+            "processed_files": len(results),
+            "recursive": recursive,
+            "file_types": file_types
+        },
+        "results": results
+    }
+    
+    with open(output_path / "batch_summary.json", "w") as f:
+        json.dump(batch_summary, f, indent=2)
+    
+    console.print(f"\n✅ Batch processing completed!")
+    console.print(f"📊 Processed {len(results)}/{len(files_to_process)} files")
+    console.print(f"📁 Results saved to: {output_path}")
+
+
+def process_single_file(file_path: str, output_dir: Path) -> dict:
+    """Process a single file through the complete pipeline."""
+    file_name = Path(file_path).name
+    file_id = str(uuid.uuid4())[:8]
+    
+    # Phase 1: Validation
+    validator = FileValidator()
+    metadata = validator.validate_file(file_path)
+    
+    # Phase 2: API calls (simulated)
+    embed_service = EmbedAPIService()
+    search_service = SearchAPIService()
+    generate_service = GenerateAPIService()
+    
+    embedding = embed_service.create_embedding(file_id)
+    search_results = search_service.search_videos(f"content from {file_name}")
+    generated_text = generate_service.generate_description(file_id)
+    
+    # Phase 3: Processing
+    labeler_service = LabelerService()
+    metadata_service = MetadataGeneratorService()
+    
+    labels = labeler_service.process_asset(file_id, embedding.embedding, search_results.results, generated_text.text)
+    metadata_output = metadata_service.process_text_description(generated_text.text, file_id)
+    
+    # Save individual results
+    result = {
+        "file_path": file_path,
+        "file_id": file_id,
+        "metadata": metadata.model_dump(),
+        "embedding": embedding.model_dump(),
+        "search_results": search_results.model_dump(),
+        "generated_text": generated_text.model_dump(),
+        "labels": labels.model_dump(),
+        "metadata_output": metadata_output.model_dump()
+    }
+    
+    with open(output_dir / f"{file_id}_results.json", "w") as f:
+        json.dump(result, f, indent=2)
+    
+    return result
+
+
+@inspect.command()
+@click.option('--output', '-o', type=click.Path(), help='Output file for vector store data')
+def vector_store(output: Optional[str]):
+    """Inspect the internal vector store state."""
+    console.print(Panel("[bold blue]Vector Store Inspection[/bold blue]", title="Vector Store"))
+    
+    # Get vector store data from services
+    db_service = DatabaseService()
+    search_service = SearchIndexService()
+    
+    # Simulate some stored data
+    sample_vectors = {
+        "vec_001": VectorRecord(
+            asset_id="asset_001",
+            embedding=[0.1, 0.5, -0.3, 0.8, -0.2, 0.6] * 256,
+            model="embed-english-v1",
+            dimensions=1536
+        ),
+        "vec_002": VectorRecord(
+            asset_id="asset_002", 
+            embedding=[0.2, 0.4, -0.1, 0.9, -0.3, 0.7] * 256,
+            model="embed-english-v1",
+            dimensions=1536
+        )
+    }
+    
+    sample_assets = {
+        "asset_001": AssetRecord(
+            asset_id="asset_001",
+            file_name="video1.mp4",
+            file_size="15.2MB",
+            format="mp4",
+            modality="video",
+            metadata=MetadataOutput(
+                summary="A family enjoying a picnic in the park",
+                keywords=["family", "picnic", "park", "outdoor"],
+                categories=["lifestyle", "family", "outdoor"],
+                tags=["#family", "#picnic", "#outdoor"],
+                search_text="family picnic park outdoor lifestyle",
+                video_id="asset_001"
+            ),
+            labels=["family", "outdoor", "picnic", "lifestyle"],
+            created_at=datetime.now().isoformat()
+        ),
+        "asset_002": AssetRecord(
+            asset_id="asset_002",
+            file_name="video2.mp4", 
+            file_size="12.8MB",
+            format="mp4",
+            modality="video",
+            metadata=MetadataOutput(
+                summary="Children playing in the garden",
+                keywords=["children", "playing", "garden", "outdoor"],
+                categories=["family", "outdoor", "children"],
+                tags=["#children", "#playing", "#garden"],
+                search_text="children playing garden outdoor family",
+                video_id="asset_002"
+            ),
+            labels=["children", "outdoor", "playing", "family"],
+            created_at=datetime.now().isoformat()
+        )
+    }
+    
+    # Display vector store information
+    table = Table(title="Vector Store Contents")
+    table.add_column("Asset ID", style="cyan")
+    table.add_column("File Name", style="green")
+    table.add_column("Modality", style="yellow")
+    table.add_column("Embedding Dimensions", style="magenta")
+    table.add_column("Model", style="blue")
+    
+    for asset_id, asset in sample_assets.items():
+        vector = sample_vectors.get(asset_id)
+        if vector:
+            table.add_row(
+                asset_id,
+                asset.file_name,
+                asset.modality,
+                str(vector.dimensions),
+                vector.model
+            )
+    
+    console.print(table)
+    
+    # Display embedding statistics
+    console.print("\n[bold]Embedding Statistics:[/bold]")
+    console.print(f"📊 Total vectors: {len(sample_vectors)}")
+    console.print(f"📊 Average dimensions: {sum(v.dimensions for v in sample_vectors.values()) / len(sample_vectors)}")
+    console.print(f"📊 Models used: {list(set(v.model for v in sample_vectors.values()))}")
+    
+    # Save to file if requested
+    if output:
+        vector_store_data = {
+            "vectors": {k: v.model_dump() for k, v in sample_vectors.items()},
+            "assets": {k: v.model_dump() for k, v in sample_assets.items()},
+            "statistics": {
+                "total_vectors": len(sample_vectors),
+                "total_assets": len(sample_assets),
+                "models": list(set(v.model for v in sample_vectors.values())),
+                "modalities": list(set(a.modality for a in sample_assets.values()))
+            }
+        }
+        
+        with open(output, 'w') as f:
+            json.dump(vector_store_data, f, indent=2)
+        console.print(f"[green]Vector store data saved to: {output}[/green]")
+
+
+@inspect.command()
+@click.option('--asset-id', help='Specific asset ID to inspect')
+@click.option('--output', '-o', type=click.Path(), help='Output file for detailed inspection')
+def embeddings(asset_id: Optional[str], output: Optional[str]):
+    """Inspect embedding data and similarity calculations."""
+    console.print(Panel("[bold blue]Embedding Inspection[/bold blue]", title="Embeddings"))
+    
+    # Simulate embedding data
+    embeddings_data = {
+        "asset_001": {
+            "embedding": [0.1, 0.5, -0.3, 0.8, -0.2, 0.6] * 256,
+            "model": "embed-english-v1",
+            "dimensions": 1536,
+            "metadata": {
+                "file_name": "video1.mp4",
+                "modality": "video",
+                "duration": "2:30"
+            }
+        },
+        "asset_002": {
+            "embedding": [0.2, 0.4, -0.1, 0.9, -0.3, 0.7] * 256,
+            "model": "embed-english-v1", 
+            "dimensions": 1536,
+            "metadata": {
+                "file_name": "video2.mp4",
+                "modality": "video",
+                "duration": "1:45"
+            }
+        }
+    }
+    
+    if asset_id and asset_id in embeddings_data:
+        # Inspect specific asset
+        data = embeddings_data[asset_id]
+        console.print(f"[bold]Asset ID:[/bold] {asset_id}")
+        console.print(f"[bold]File:[/bold] {data['metadata']['file_name']}")
+        console.print(f"[bold]Model:[/bold] {data['model']}")
+        console.print(f"[bold]Dimensions:[/bold] {data['dimensions']}")
+        console.print(f"[bold]Embedding Preview:[/bold] {data['embedding'][:10]}...")
+        
+        # Calculate similarity with other embeddings
+        console.print("\n[bold]Similarity Scores:[/bold]")
+        for other_id, other_data in embeddings_data.items():
+            if other_id != asset_id:
+                # Simple cosine similarity calculation
+                similarity = sum(a * b for a, b in zip(data['embedding'][:10], other_data['embedding'][:10]))
+                console.print(f"  {asset_id} ↔ {other_id}: {similarity:.3f}")
+    else:
+        # Show all embeddings
+        table = Table(title="All Embeddings")
+        table.add_column("Asset ID", style="cyan")
+        table.add_column("File Name", style="green")
+        table.add_column("Model", style="yellow")
+        table.add_column("Dimensions", style="magenta")
+        table.add_column("Embedding Preview", style="blue")
+        
+        for asset_id, data in embeddings_data.items():
+            preview = str(data['embedding'][:5]) + "..."
+            table.add_row(
+                asset_id,
+                data['metadata']['file_name'],
+                data['model'],
+                str(data['dimensions']),
+                preview
+            )
+        
+        console.print(table)
+    
+    if output:
+        with open(output, 'w') as f:
+            json.dump(embeddings_data, f, indent=2)
+        console.print(f"[green]Embedding data saved to: {output}[/green]")
+
+
+@output.command()
+@click.argument('file_path', type=click.Path(exists=True))
+@click.option('--output-dir', '-o', default='output', help='Output directory for all data')
+@click.option('--format', 'output_format', default='json', type=click.Choice(['json', 'csv', 'yaml']), help='Output format')
+@click.option('--include-embeddings', is_flag=True, help='Include full embedding vectors in output')
+@click.option('--include-metadata', is_flag=True, default=True, help='Include metadata in output')
+@click.option('--include-search-terms', is_flag=True, default=True, help='Include search terms in output')
+def export_data(file_path: str, output_dir: str, output_format: str, include_embeddings: bool, include_metadata: bool, include_search_terms: bool):
+    """Export all data (embeddings, search terms, metadata) for a processed file."""
+    console.print(Panel(f"[bold blue]Data Export[/bold blue]\n[bold]File:[/bold] {file_path}", title="Export Data"))
+    
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+    
+    # Process the file to get all data
+    file_id = str(uuid.uuid4())[:8]
+    
+    # Phase 1: Validation
+    validator = FileValidator()
+    metadata = validator.validate_file(file_path)
+    
+    # Phase 2: API calls
+    embed_service = EmbedAPIService()
+    search_service = SearchAPIService()
+    generate_service = GenerateAPIService()
+    
+    embedding = embed_service.create_embedding(file_id)
+    search_results = search_service.search_videos(f"content from {Path(file_path).name}")
+    generated_text = generate_service.generate_description(file_id)
+    
+    # Phase 3: Processing
+    labeler_service = LabelerService()
+    metadata_service = MetadataGeneratorService()
+    
+    labels = labeler_service.process_asset(file_id, embedding.embedding, search_results.results, generated_text.text)
+    metadata_output = metadata_service.process_text_description(generated_text.text, file_id)
+    
+    # Prepare export data
+    export_data = {
+        "file_info": {
+            "file_path": file_path,
+            "file_id": file_id,
+            "processed_at": datetime.now().isoformat()
+        }
+    }
+    
+    if include_metadata:
+        export_data["metadata"] = metadata.model_dump()
+        export_data["generated_metadata"] = metadata_output.model_dump()
+    
+    if include_embeddings:
+        export_data["embedding"] = embedding.model_dump()
+    
+    if include_search_terms:
+        export_data["search_results"] = search_results.model_dump()
+        export_data["generated_text"] = generated_text.model_dump()
+    
+    export_data["labels"] = labels.model_dump()
+    
+    # Export in requested format
+    base_filename = Path(file_path).stem
+    if output_format == 'json':
+        output_file = output_path / f"{base_filename}_export.json"
+        with open(output_file, 'w') as f:
+            json.dump(export_data, f, indent=2)
+    elif output_format == 'csv':
+        # Create CSV files for different data types
+        import csv
+        
+        # Metadata CSV
+        metadata_file = output_path / f"{base_filename}_metadata.csv"
+        with open(metadata_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Property', 'Value'])
+            for key, value in export_data.get('metadata', {}).items():
+                writer.writerow([key, str(value)])
+        
+        # Labels CSV
+        labels_file = output_path / f"{base_filename}_labels.csv"
+        with open(labels_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Label', 'Confidence', 'Category'])
+            for i, label in enumerate(export_data.get('labels', {}).get('labels', [])):
+                confidence = export_data.get('labels', {}).get('confidence', [])[i] if i < len(export_data.get('labels', {}).get('confidence', [])) else 0.0
+                category = export_data.get('labels', {}).get('categories', [])[i] if i < len(export_data.get('labels', {}).get('categories', [])) else ''
+                writer.writerow([label, confidence, category])
+        
+        output_file = metadata_file  # Use metadata file as primary output
+    
+    elif output_format == 'yaml':
+        import yaml
+        output_file = output_path / f"{base_filename}_export.yaml"
+        with open(output_file, 'w') as f:
+            yaml.dump(export_data, f, default_flow_style=False)
+    
+    console.print(f"✅ Data exported successfully!")
+    console.print(f"📁 Output file: {output_file}")
+    console.print(f"📊 Format: {output_format.upper()}")
+    console.print(f"📊 Included: metadata={include_metadata}, embeddings={include_embeddings}, search_terms={include_search_terms}")
+
+
+@output.command()
+@click.argument('query')
+@click.option('--output-dir', '-o', default='search_output', help='Output directory for search results')
+@click.option('--limit', default=10, help='Number of search results')
+@click.option('--format', 'output_format', default='json', type=click.Choice(['json', 'csv', 'yaml']), help='Output format')
+def search_export(query: str, output_dir: str, limit: int, output_format: str):
+    """Export search results with embeddings and metadata."""
+    console.print(Panel(f"[bold blue]Search Export[/bold blue]\n[bold]Query:[/bold] {query}", title="Search Export"))
+    
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+    
+    # Perform search
+    search_service = SearchAPIService()
+    search_results = search_service.search_videos(query, limit=limit)
+    
+    # Get embeddings for search results
+    embed_service = EmbedAPIService()
+    export_data = {
+        "query": query,
+        "search_results": search_results.model_dump(),
+        "embeddings": {},
+        "metadata": {}
+    }
+    
+    # Simulate getting embeddings for each result
+    for i, result in enumerate(search_results.results):
+        embedding = embed_service.create_embedding(result.video_id)
+        export_data["embeddings"][result.video_id] = embedding.model_dump()
+        
+        # Simulate metadata
+        export_data["metadata"][result.video_id] = {
+            "video_id": result.video_id,
+            "score": result.score,
+            "text": result.text,
+            "embedding_dimensions": embedding.dimensions,
+            "model": embedding.model
+        }
+    
+    # Export in requested format
+    safe_query = "".join(c for c in query if c.isalnum() or c in (' ', '-', '_')).rstrip()
+    safe_query = safe_query.replace(' ', '_')
+    
+    if output_format == 'json':
+        output_file = output_path / f"search_{safe_query}.json"
+        with open(output_file, 'w') as f:
+            json.dump(export_data, f, indent=2)
+    elif output_format == 'csv':
+        import csv
+        output_file = output_path / f"search_{safe_query}.csv"
+        with open(output_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Video ID', 'Score', 'Text', 'Embedding Dimensions', 'Model'])
+            for video_id, metadata in export_data["metadata"].items():
+                writer.writerow([
+                    video_id,
+                    metadata["score"],
+                    metadata["text"][:50] + "..." if len(metadata["text"]) > 50 else metadata["text"],
+                    metadata["embedding_dimensions"],
+                    metadata["model"]
+                ])
+    elif output_format == 'yaml':
+        import yaml
+        output_file = output_path / f"search_{safe_query}.yaml"
+        with open(output_file, 'w') as f:
+            yaml.dump(export_data, f, default_flow_style=False)
+    
+    console.print(f"✅ Search export completed!")
+    console.print(f"📁 Output file: {output_file}")
+    console.print(f"📊 Results: {len(search_results.results)} items")
+    console.print(f"📊 Format: {output_format.upper()}")
 
 
 @spec.command()
