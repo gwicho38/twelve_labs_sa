@@ -337,13 +337,22 @@ def process(file_path: str, title: Optional[str], output_dir: Optional[str]):
     console.print("\n[bold blue]Phase 4: Data Storage[/bold blue]")
     db_service = DatabaseService()
     
+    # Get file metadata for required fields
+    file_validator = FileValidator()
+    file_metadata = file_validator.validate_file(file_path)
+    
     # Create asset record
     asset_record = AssetRecord(
         asset_id=video_metadata.video_id,
+        video_id=video_metadata.video_id,
         file_name=Path(file_path).name,
-        file_path=str(file_path),
-        modality="video",
-        metadata=metadata.model_dump(),
+        file_size=file_metadata.size,
+        duration=file_metadata.duration,
+        format=file_metadata.format,
+        resolution=file_metadata.resolution,
+        modality=file_metadata.modality,
+        metadata=metadata,
+        labels=labels.labels,
         created_at=datetime.now().isoformat()
     )
     

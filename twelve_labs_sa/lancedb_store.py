@@ -34,7 +34,7 @@ class LanceDBStore:
         self.schema = pa.schema([
             pa.field("asset_id", pa.string()),
             pa.field("video_id", pa.string()),
-            pa.field("embedding", pa.list_(pa.float32(), 1536)),  # Twelve Labs embedding dimension
+            pa.field("embedding", pa.list_(pa.float32())),  # Variable size embedding
             pa.field("model", pa.string()),
             pa.field("modality", pa.string()),
             pa.field("start_time", pa.float32()),
@@ -42,6 +42,9 @@ class LanceDBStore:
             pa.field("embedding_scope", pa.string()),
             pa.field("file_name", pa.string()),
             pa.field("file_size", pa.string()),
+            pa.field("duration", pa.string()),
+            pa.field("format", pa.string()),
+            pa.field("resolution", pa.string()),
             pa.field("created_at", pa.string()),
             pa.field("labels", pa.list_(pa.string())),
             pa.field("confidence", pa.list_(pa.float32())),
@@ -74,7 +77,7 @@ class LanceDBStore:
         record = {
             "asset_id": asset_record.asset_id,
             "video_id": asset_record.video_id or "",
-            "embedding": [],  # Will be updated when vector is stored
+            "embedding": [0.0] * 1536,  # Default embedding size for Twelve Labs
             "model": "",
             "modality": asset_record.modality,
             "start_time": 0.0,
@@ -82,8 +85,11 @@ class LanceDBStore:
             "embedding_scope": "",
             "file_name": asset_record.file_name,
             "file_size": asset_record.file_size,
+            "duration": asset_record.duration or "",
+            "format": asset_record.format,
+            "resolution": asset_record.resolution or "",
             "created_at": asset_record.created_at,
-            "labels": [],
+            "labels": asset_record.labels,
             "confidence": [],
             "categories": [],
             "summary": "",
@@ -97,39 +103,68 @@ class LanceDBStore:
     
     def store_vector(self, vector_record: VectorRecord, temporal_info: Optional[TemporalInfo] = None) -> str:
         """Store vector data in LanceDB."""
-        # Update existing record with vector data
-        update_data = {
+        # Get existing record
+        existing = self.table.search().where(f"asset_id = '{vector_record.asset_id}'").to_list()
+        if not existing:
+            print(f"Asset {vector_record.asset_id} not found for vector update")
+            return vector_record.asset_id
+        
+        # Update the record by deleting and recreating
+        self.table.delete(f"asset_id = '{vector_record.asset_id}'")
+        
+        record = existing[0].copy()
+        record.update({
             "embedding": vector_record.embedding,
             "model": vector_record.model,
             "start_time": temporal_info.start_time if temporal_info else 0.0,
             "end_time": temporal_info.end_time if temporal_info else 0.0,
             "embedding_scope": temporal_info.scope if temporal_info else ""
-        }
+        })
         
-        self.table.update().where(f"asset_id = '{vector_record.asset_id}'").set(update_data).execute()
+        self.table.add([record])
         return vector_record.asset_id
     
     def store_labels(self, label_record: LabelRecord) -> str:
         """Store label data in LanceDB."""
-        update_data = {
+        # Get existing record
+        existing = self.table.search().where(f"asset_id = '{label_record.asset_id}'").to_list()
+        if not existing:
+            print(f"Asset {label_record.asset_id} not found for labels update")
+            return label_record.asset_id
+        
+        # Update the record by deleting and recreating
+        self.table.delete(f"asset_id = '{label_record.asset_id}'")
+        
+        record = existing[0].copy()
+        record.update({
             "labels": label_record.labels,
             "confidence": label_record.confidence,
             "categories": label_record.categories
-        }
+        })
         
-        self.table.update().where(f"asset_id = '{label_record.asset_id}'").set(update_data).execute()
+        self.table.add([record])
         return label_record.asset_id
     
     def store_metadata(self, asset_id: str, metadata: MetadataOutput) -> str:
         """Store metadata in LanceDB."""
-        update_data = {
+        # Get existing record
+        existing = self.table.search().where(f"asset_id = '{asset_id}'").to_list()
+        if not existing:
+            print(f"Asset {asset_id} not found for metadata update")
+            return asset_id
+        
+        # Update the record by deleting and recreating
+        self.table.delete(f"asset_id = '{asset_id}'")
+        
+        record = existing[0].copy()
+        record.update({
             "summary": metadata.summary,
             "keywords": metadata.keywords,
             "tags": metadata.tags,
             "search_text": metadata.search_text
-        }
+        })
         
-        self.table.update().where(f"asset_id = '{asset_id}'").set(update_data).execute()
+        self.table.add([record])
         return asset_id
     
     def get_asset(self, asset_id: str) -> Optional[AssetRecord]:
@@ -212,12 +247,27 @@ class LanceDBStore:
         results = self.table.search().to_list()
         assets = []
         for record in results:
+            # Create metadata object
+            metadata = MetadataOutput(
+                summary=record.get("summary", ""),
+                keywords=record.get("keywords", []),
+                categories=record.get("categories", []),
+                tags=record.get("tags", []),
+                search_text=record.get("search_text", ""),
+                video_id=record.get("video_id")
+            )
+            
             assets.append(AssetRecord(
                 asset_id=record["asset_id"],
                 video_id=record["video_id"] if record["video_id"] else None,
                 file_name=record["file_name"],
                 file_size=record["file_size"],
+                duration=record.get("duration"),
+                format=record.get("format", ""),
+                resolution=record.get("resolution"),
                 modality=record["modality"],
+                metadata=metadata,
+                labels=record.get("labels", []),
                 created_at=record["created_at"]
             ))
         return assets
