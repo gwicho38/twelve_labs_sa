@@ -15,6 +15,9 @@ class Config:
     API_KEY: str = os.getenv("TWELVE_LABS_API_KEY", "tlk_2TW8RSN1DK2JH220EPXZH39WPBVW")
     BASE_URL: str = "https://api.twelvelabs.io/v1.3"
     
+    # Simulation mode - set to True for simulated API calls, False for real API calls
+    SIMULATION_MODE: bool = os.getenv("TWELVE_LABS_SIMULATION_MODE", "true").lower() == "true"
+    
     # Default settings
     DEFAULT_MODEL: str = "embed-english-v1"
     DEFAULT_INDEX_ID: str = "existing_assets"
@@ -46,4 +49,14 @@ class Config:
     @classmethod
     def validate_api_key(cls) -> bool:
         """Validate that API key is set."""
-        return bool(cls.API_KEY and cls.API_KEY.startswith("tlk_")) 
+        return bool(cls.API_KEY and cls.API_KEY.startswith("tlk_"))
+    
+    @classmethod
+    def is_simulation_mode(cls) -> bool:
+        """Check if simulation mode is enabled."""
+        return cls.SIMULATION_MODE
+    
+    @classmethod
+    def set_simulation_mode(cls, enabled: bool) -> None:
+        """Set simulation mode."""
+        cls.SIMULATION_MODE = enabled 
