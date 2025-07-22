@@ -289,4 +289,81 @@ class LanceDBStore:
                 dimensions=len(record["embedding"]),
                 modality=record["modality"]
             ))
-        return vectors 
+        return vectors
+    
+    def get_all_vectors(self) -> List[VectorRecord]:
+        """Get all stored vectors."""
+        results = self.table.search().to_list()
+        vectors = []
+        for record in results:
+            if record["embedding"]:  # Only include records with embeddings
+                vectors.append(VectorRecord(
+                    asset_id=record["asset_id"],
+                    video_id=record["video_id"] if record["video_id"] else None,
+                    embedding=record["embedding"],
+                    model=record["model"],
+                    dimensions=len(record["embedding"]),
+                    modality=record["modality"]
+                ))
+        return vectors
+    
+    def get_all_labels(self) -> List[LabelRecord]:
+        """Get all stored labels."""
+        results = self.table.search().to_list()
+        labels = []
+        for record in results:
+            if record["labels"]:  # Only include records with labels
+                labels.append(LabelRecord(
+                    asset_id=record["asset_id"],
+                    video_id=record["video_id"] if record["video_id"] else None,
+                    labels=record["labels"],
+                    confidence=record["confidence"],
+                    categories=record["categories"]
+                ))
+        return labels
+    
+    def get_all_metadata(self) -> List[MetadataOutput]:
+        """Get all stored metadata."""
+        results = self.table.search().to_list()
+        metadata = []
+        for record in results:
+            if record["summary"]:  # Only include records with metadata
+                metadata.append(MetadataOutput(
+                    summary=record["summary"],
+                    keywords=record["keywords"],
+                    categories=record["categories"],
+                    tags=record["tags"],
+                    search_text=record["search_text"],
+                    video_id=record["video_id"] if record["video_id"] else None
+                ))
+        return metadata
+    
+    def import_store(self, import_path: str):
+        """Import stored data from a directory."""
+        import_dir = Path(import_path)
+        
+        # Import from JSON export
+        export_file = import_dir / "lancedb_export.json"
+        if export_file.exists():
+            with open(export_file, 'r') as f:
+                data = json.load(f)
+            
+            # Clear existing data and import new data
+            self.clear_store()
+            for record in data:
+                self.table.add([record])
+    
+    def search_assets_by_keyword(self, keyword: str) -> List[AssetRecord]:
+        """Search assets by keyword in metadata."""
+        results = self.table.search().where(f"search_text LIKE '%{keyword}%' OR summary LIKE '%{keyword}%'").to_list()
+        assets = []
+        for record in results:
+            assets.append(AssetRecord(
+                asset_id=record["asset_id"],
+                video_id=record["video_id"] if record["video_id"] else None,
+                file_name=record["file_name"],
+                file_size=record["file_size"],
+                modality=record["modality"],
+                created_at=record["created_at"]
+            ))
+        return assets 

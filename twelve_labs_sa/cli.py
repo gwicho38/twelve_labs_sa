@@ -40,9 +40,17 @@ from .services import (
 console = Console()
 
 
-def show_vector_store_state(storage_dir: str = '.vector_store'):
+def get_storage_backend(use_lancedb: bool, use_file_storage: bool = False) -> Optional[bool]:
+    """Helper function to determine storage backend based on flags."""
+    if use_file_storage:
+        return False
+    elif not use_lancedb:
+        return None  # Use config default
+    return use_lancedb
+
+def show_vector_store_state(storage_dir: str = '.vector_store', use_lancedb: Optional[bool] = None):
     """Helper function to display current vector store state."""
-    db_service = DatabaseService(storage_dir)
+    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
     stored_vectors = db_service.get_all_vectors()
     stored_assets = db_service.get_all_assets()
     stored_labels = db_service.get_all_labels()
@@ -942,21 +950,23 @@ def config():
 
 @config.command()
 def mode():
-    """Show current simulation mode status."""
+    """Show current simulation mode and storage backend status."""
+    # Simulation mode status
     if Config.is_simulation_mode():
-        console.print(Panel(
-            "[yellow]🔧 Simulation Mode Enabled[/yellow]\n\n"
-            "All API calls are simulated for development/testing.\n"
-            "No real API calls will be made to Twelve Labs.",
-            title="Mode Status"
-        ))
+        simulation_status = "[yellow]🔧 Simulation Mode Enabled[/yellow]\n\nAll API calls are simulated for development/testing.\nNo real API calls will be made to Twelve Labs."
     else:
-        console.print(Panel(
-            "[green]🚀 Real API Mode Enabled[/green]\n\n"
-            "All API calls will be made to Twelve Labs API.\n"
-            "Make sure you have a valid API key configured.",
-            title="Mode Status"
-        ))
+        simulation_status = "[green]🚀 Real API Mode Enabled[/green]\n\nAll API calls will be made to Twelve Labs API.\nMake sure you have a valid API key configured."
+    
+    # Storage backend status
+    if Config.use_lancedb():
+        storage_status = "[blue]🗄️ LanceDB Storage Backend (Default)[/blue]\n\nUsing LanceDB for high-performance vector storage.\nFile-based storage can be enabled with --use-file-storage."
+    else:
+        storage_status = "[cyan]📁 File-based Storage Backend[/cyan]\n\nUsing file-based storage for data persistence.\nLanceDB can be enabled with --use-lancedb."
+    
+    console.print(Panel(
+        f"{simulation_status}\n\n{storage_status}",
+        title="Configuration Status"
+    ))
 
 
 @main.group()
@@ -1406,13 +1416,14 @@ def process_single_file(file_path: str, output_dir: Path) -> dict:
 @inspect.command()
 @click.option('--output', '-o', type=click.Path(), help='Output file for vector store data')
 @click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def vector_store(output: Optional[str], storage_dir: str, use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def vector_store(output: Optional[str], storage_dir: str, use_lancedb: bool, use_file_storage: bool):
     """Inspect the internal vector store state."""
     console.print(Panel("[bold blue]Vector Store Inspection[/bold blue]", title="Vector Store"))
     
     # Get vector store data from services
-    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
     
     # Get actual stored data using retrieval methods
     stored_vectors = db_service.get_all_vectors()
@@ -1496,12 +1507,13 @@ def vector_store(output: Optional[str], storage_dir: str, use_lancedb: bool):
 @inspect.command()
 @click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
 @click.option('--export-path', '-e', type=click.Path(), help='Export path for vector store data')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def export_store(storage_dir: str, export_path: Optional[str], use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def export_store(storage_dir: str, export_path: Optional[str], use_lancedb: bool, use_file_storage: bool):
     """Export vector store data to a directory."""
     console.print(Panel("[bold blue]Vector Store Export[/bold blue]", title="Export Store"))
     
-    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
     stats = db_service.get_store_stats()
     
     if stats['total_assets'] == 0:
@@ -1524,12 +1536,13 @@ def export_store(storage_dir: str, export_path: Optional[str], use_lancedb: bool
 @inspect.command()
 @click.argument('import_path', type=click.Path(exists=True))
 @click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def import_store(import_path: str, storage_dir: str, use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def import_store(import_path: str, storage_dir: str, use_lancedb: bool, use_file_storage: bool):
     """Import vector store data from a directory."""
     console.print(Panel(f"[bold blue]Vector Store Import[/bold blue]\n[bold]Import Path:[/bold] {import_path}", title="Import Store"))
     
-    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
     
     # Check if import directory has required files
     import_dir = Path(import_path)
@@ -1556,12 +1569,13 @@ def import_store(import_path: str, storage_dir: str, use_lancedb: bool):
 @inspect.command()
 @click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
 @click.option('--confirm', is_flag=True, help='Confirm clearing without prompt')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def clear_store(storage_dir: str, confirm: bool, use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def clear_store(storage_dir: str, confirm: bool, use_lancedb: bool, use_file_storage: bool):
     """Clear all data from vector store."""
     console.print(Panel("[bold red]Clear Vector Store[/bold red]", title="Clear Store"))
     
-    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
     stats = db_service.get_store_stats()
     
     if stats['total_assets'] == 0:
@@ -1587,12 +1601,13 @@ def clear_store(storage_dir: str, confirm: bool, use_lancedb: bool):
 @click.argument('keyword')
 @click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
 @click.option('--output', '-o', type=click.Path(), help='Output file for search results')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def search_store(keyword: str, storage_dir: str, output: Optional[str], use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def search_store(keyword: str, storage_dir: str, output: Optional[str], use_lancedb: bool, use_file_storage: bool):
     """Search assets in vector store by keyword."""
     console.print(Panel(f"[bold blue]Vector Store Search[/bold blue]\n[bold]Keyword:[/bold] {keyword}", title="Search Store"))
     
-    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
     results = db_service.search_assets_by_keyword(keyword)
     
     if not results:
@@ -1631,12 +1646,13 @@ def search_store(keyword: str, storage_dir: str, output: Optional[str], use_lanc
 @click.argument('modality')
 @click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
 @click.option('--output', '-o', type=click.Path(), help='Output file for results')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def list_by_modality(modality: str, storage_dir: str, output: Optional[str], use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def list_by_modality(modality: str, storage_dir: str, output: Optional[str], use_lancedb: bool, use_file_storage: bool):
     """List all assets of a specific modality."""
     console.print(Panel(f"[bold blue]Assets by Modality[/bold blue]\n[bold]Modality:[/bold] {modality}", title="List by Modality"))
     
-    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
     assets = db_service.list_assets_by_modality(modality)
     
     if not assets:
@@ -1671,8 +1687,9 @@ def list_by_modality(modality: str, storage_dir: str, output: Optional[str], use
 @inspect.command()
 @click.option('--asset-id', help='Specific asset ID to inspect')
 @click.option('--output', '-o', type=click.Path(), help='Output file for detailed inspection')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def embeddings(asset_id: Optional[str], output: Optional[str], use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def embeddings(asset_id: Optional[str], output: Optional[str], use_lancedb: bool, use_file_storage: bool):
     """Inspect embedding data and similarity calculations."""
     console.print(Panel("[bold blue]Embedding Inspection[/bold blue]", title="Embeddings"))
     
@@ -1750,8 +1767,9 @@ def embeddings(asset_id: Optional[str], output: Optional[str], use_lancedb: bool
 @click.option('--include-embeddings', is_flag=True, help='Include full embedding vectors in output')
 @click.option('--include-metadata', is_flag=True, default=True, help='Include metadata in output')
 @click.option('--include-search-terms', is_flag=True, default=True, help='Include search terms in output')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def export_data(file_path: str, output_dir: str, output_format: str, include_embeddings: bool, include_metadata: bool, include_search_terms: bool, use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def export_data(file_path: str, output_dir: str, output_format: str, include_embeddings: bool, include_metadata: bool, include_search_terms: bool, use_lancedb: bool, use_file_storage: bool):
     """Export all data (embeddings, search terms, metadata) for a processed file."""
     console.print(Panel(f"[bold blue]Data Export[/bold blue]\n[bold]File:[/bold] {file_path}", title="Export Data"))
     
@@ -1850,8 +1868,9 @@ def export_data(file_path: str, output_dir: str, output_format: str, include_emb
 @click.option('--output-dir', '-o', default='search_output', help='Output directory for search results')
 @click.option('--limit', default=10, help='Number of search results')
 @click.option('--format', 'output_format', default='json', type=click.Choice(['json', 'csv', 'yaml']), help='Output format')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def search_export(query: str, output_dir: str, limit: int, output_format: str, use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def search_export(query: str, output_dir: str, limit: int, output_format: str, use_lancedb: bool, use_file_storage: bool):
     """Export search results with embeddings and metadata."""
     console.print(Panel(f"[bold blue]Search Export[/bold blue]\n[bold]Query:[/bold] {query}", title="Search Export"))
     
@@ -1924,8 +1943,9 @@ def search_export(query: str, output_dir: str, limit: int, output_format: str, u
 @click.option('--limit', default=5, help='Number of search results')
 @click.option('--model', default='search-english-v1', help='Search model to use')
 @click.option('--output', '-o', type=click.Path(), help='Output file for results')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def search(query: str, limit: int, model: str, output: Optional[str], use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def search(query: str, limit: int, model: str, output: Optional[str], use_lancedb: bool, use_file_storage: bool):
     """Test search functionality with default query."""
     console.print(Panel(f"[bold blue]Search Test[/bold blue]\n[bold]Query:[/bold] {query}", title="Search Test"))
     
@@ -1968,8 +1988,9 @@ def search(query: str, limit: int, model: str, output: Optional[str], use_lanced
 @test.command()
 @click.argument('text', default='A family enjoying a picnic in the park on a sunny afternoon. Children are playing while adults are setting up food on a blanket.')
 @click.option('--output', '-o', type=click.Path(), help='Output file for results')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def metadata(text: str, output: Optional[str], use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def metadata(text: str, output: Optional[str], use_lancedb: bool, use_file_storage: bool):
     """Test metadata generation logic with sample text."""
     console.print(Panel(f"[bold blue]Metadata Generation Test[/bold blue]\n[bold]Input Text:[/bold] {text[:100]}...", title="Metadata Test"))
     
@@ -2004,8 +2025,9 @@ def metadata(text: str, output: Optional[str], use_lancedb: bool):
 @click.option('--search-file', type=click.Path(exists=True), help='Search results file')
 @click.option('--generate-file', type=click.Path(exists=True), help='Generated text file')
 @click.option('--output', '-o', type=click.Path(), help='Output file for results')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def eval(asset_id: str, embedding_file: Optional[str], search_file: Optional[str], generate_file: Optional[str], output: Optional[str], use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def eval(asset_id: str, embedding_file: Optional[str], search_file: Optional[str], generate_file: Optional[str], output: Optional[str], use_lancedb: bool, use_file_storage: bool):
     """Test evaluation logic with sample data."""
     console.print(Panel(f"[bold blue]Evaluation Logic Test[/bold blue]\n[bold]Asset ID:[/bold] {asset_id}", title="Evaluation Test"))
     
@@ -2113,8 +2135,9 @@ def eval(asset_id: str, embedding_file: Optional[str], search_file: Optional[str
 
 @test.command()
 @click.option('--output-dir', '-o', default='test_results', help='Output directory for all test results')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def all(output_dir: str, use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def all(output_dir: str, use_lancedb: bool, use_file_storage: bool):
     """Run all tests and save results."""
     console.print(Panel(f"[bold blue]Running All Tests[/bold blue]\n[bold]Output Directory:[/bold] {output_dir}", title="All Tests"))
     
@@ -2276,8 +2299,9 @@ def all(output_dir: str, use_lancedb: bool):
 @spec.command()
 @click.argument('asset_path', type=click.Path(exists=True))
 @click.option('--output-dir', default='asset_processing_demo', help='Output directory for results')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def process_asset(asset_path, output_dir, use_lancedb):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def process_asset(asset_path, output_dir, use_lancedb, use_file_storage):
     """Process a specific asset to demonstrate the complete pipeline."""
     console.print(Panel(f"[bold green]Asset Processing Demo[/bold green]\n[bold]Asset:[/bold] {asset_path}", title="Asset Demo"))
     
@@ -2533,13 +2557,14 @@ def lancedb():
 
 @lancedb.command()
 @click.option('--storage-dir', default='.lancedb_store', help='LanceDB storage directory')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend instead of file-based storage')
-def init(storage_dir: str, use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def init(storage_dir: str, use_lancedb: bool, use_file_storage: bool):
     """Initialize LanceDB vector database."""
     console.print(Panel("[bold blue]LanceDB Vector Database Initialization[/bold blue]", title="Setup"))
     
     try:
-        db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+        db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
         stats = db_service.get_store_stats()
         
         console.print("[green]✓[/green] LanceDB initialized successfully")
@@ -2558,8 +2583,9 @@ def init(storage_dir: str, use_lancedb: bool):
 @click.argument('query_embedding', nargs=-1, type=float)
 @click.option('--k', default=5, help='Number of results to return')
 @click.option('--storage-dir', default='.lancedb_store', help='LanceDB storage directory')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def similarity_search(query_embedding, k: int, storage_dir: str, use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def similarity_search(query_embedding, k: int, storage_dir: str, use_lancedb: bool, use_file_storage: bool):
     """Perform similarity search using LanceDB."""
     if not query_embedding:
         console.print("[red]Error: Please provide embedding values[/red]")
@@ -2568,7 +2594,7 @@ def similarity_search(query_embedding, k: int, storage_dir: str, use_lancedb: bo
     console.print(Panel(f"[bold blue]LanceDB Similarity Search[/bold blue]\nQuery embedding: {len(query_embedding)} dimensions", title="Search"))
     
     try:
-        db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+        db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
         results = db_service.similarity_search(list(query_embedding), k)
         
         if results:
@@ -2598,13 +2624,14 @@ def similarity_search(query_embedding, k: int, storage_dir: str, use_lancedb: bo
 @click.argument('query_text')
 @click.option('--k', default=5, help='Number of results to return')
 @click.option('--storage-dir', default='.lancedb_store', help='LanceDB storage directory')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def text_search(query_text: str, k: int, storage_dir: str, use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def text_search(query_text: str, k: int, storage_dir: str, use_lancedb: bool, use_file_storage: bool):
     """Perform text-based search using LanceDB."""
     console.print(Panel(f"[bold blue]LanceDB Text Search[/bold blue]\nQuery: {query_text}", title="Search"))
     
     try:
-        db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+        db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
         results = db_service.text_search(query_text, k)
         
         if results:
@@ -2633,13 +2660,14 @@ def text_search(query_text: str, k: int, storage_dir: str, use_lancedb: bool):
 
 @lancedb.command()
 @click.option('--storage-dir', default='.lancedb_store', help='LanceDB storage directory')
-@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
-def stats(storage_dir: str, use_lancedb: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def stats(storage_dir: str, use_lancedb: bool, use_file_storage: bool):
     """Show LanceDB statistics."""
     console.print(Panel("[bold blue]LanceDB Statistics[/bold blue]", title="Stats"))
     
     try:
-        db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+        db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
         stats = db_service.get_store_stats()
         
         console.print("[green]✓[/green] Database Statistics:")

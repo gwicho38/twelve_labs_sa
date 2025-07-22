@@ -695,8 +695,12 @@ class MetadataGeneratorService:
 class DatabaseService:
     """Persistent database storage operations with support for multiple backends."""
     
-    def __init__(self, storage_dir: str = ".vector_store", use_lancedb: bool = False):
+    def __init__(self, storage_dir: str = ".vector_store", use_lancedb: Optional[bool] = None):
         """Initialize database service with persistent storage."""
+        # Use config default if not explicitly specified
+        if use_lancedb is None:
+            use_lancedb = Config.use_lancedb()
+        
         self.use_lancedb = use_lancedb
         
         if use_lancedb:

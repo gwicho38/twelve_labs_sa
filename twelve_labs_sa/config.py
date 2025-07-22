@@ -18,6 +18,9 @@ class Config:
     # Simulation mode - set to True for simulated API calls, False for real API calls
     SIMULATION_MODE: bool = os.getenv("TWELVE_LABS_SIMULATION_MODE", "true").lower() == "true"
     
+    # Storage Configuration - LanceDB is now the default
+    USE_LANCEDB: bool = os.getenv("TWELVE_LABS_USE_LANCEDB", "true").lower() == "true"
+    
     # Default settings
     DEFAULT_MODEL: str = "embed-english-v1"
     DEFAULT_INDEX_ID: str = "existing_assets"
@@ -59,4 +62,14 @@ class Config:
     @classmethod
     def set_simulation_mode(cls, enabled: bool) -> None:
         """Set simulation mode."""
-        cls.SIMULATION_MODE = enabled 
+        cls.SIMULATION_MODE = enabled
+    
+    @classmethod
+    def use_lancedb(cls) -> bool:
+        """Check if LanceDB should be used as the default storage backend."""
+        return cls.USE_LANCEDB
+    
+    @classmethod
+    def set_use_lancedb(cls, enabled: bool) -> None:
+        """Set whether to use LanceDB as the default storage backend."""
+        cls.USE_LANCEDB = enabled 
