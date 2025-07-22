@@ -54,12 +54,12 @@ def main():
 
 
 @main.group()
-def phase1():
+def process_raw_file():
     """Phase 1: Raw Asset Input - File validation and metadata extraction."""
     pass
 
 
-@phase1.command()
+@process_raw_file.command()
 @click.argument('file_path', type=click.Path(exists=True))
 @click.option('--output', '-o', type=click.Path(), help='Output file for metadata')
 def validate(file_path: str, output: Optional[str]):
@@ -98,7 +98,7 @@ def validate(file_path: str, output: Optional[str]):
         console.print(f"[green]Metadata saved to: {output}[/green]")
 
 
-@phase1.command()
+@process_raw_file.command()
 @click.argument('file_path', type=click.Path(exists=True))
 @click.option('--title', help='Video title')
 @click.option('--output', '-o', type=click.Path(), help='Output file for video metadata')
@@ -139,12 +139,12 @@ def upload(file_path: str, title: Optional[str], output: Optional[str]):
 
 
 @main.group()
-def phase2():
+def call_twelve_labs_apis():
     """Phase 2: Twelve Labs API Calls - Embed, Search, and Generate APIs."""
     pass
 
 
-@phase2.command()
+@call_twelve_labs_apis.command()
 @click.argument('video_id')
 @click.option('--model', default='embed-english-v1', help='Embedding model')
 @click.option('--output', '-o', type=click.Path(), help='Output file for embedding')
@@ -177,7 +177,7 @@ def embed(video_id: str, model: str, output: Optional[str]):
         console.print(f"[green]Embedding saved to: {output}[/green]")
 
 
-@phase2.command()
+@call_twelve_labs_apis.command()
 @click.argument('query')
 @click.option('--index-id', help='Search index ID')
 @click.option('--model', default='search-english-v1', help='Search model')
@@ -222,7 +222,7 @@ def search_text(query: str, index_id: Optional[str], model: str, limit: int, out
         console.print(f"[green]Search results saved to: {output}[/green]")
 
 
-@phase2.command()
+@call_twelve_labs_apis.command()
 @click.argument('video_id')
 @click.option('--index-id', help='Search index ID')
 @click.option('--model', default='search-english-v1', help='Search model')
@@ -267,7 +267,7 @@ def search_video(video_id: str, index_id: Optional[str], model: str, limit: int,
         console.print(f"[green]Search results saved to: {output}[/green]")
 
 
-@phase2.command()
+@call_twelve_labs_apis.command()
 @click.argument('video_id')
 @click.option('--model', default='generate-english-v1', help='Generation model')
 @click.option('--output', '-o', type=click.Path(), help='Output file for generated text')
@@ -300,12 +300,12 @@ def generate(video_id: str, model: str, output: Optional[str]):
 
 
 @main.group()
-def phase3():
+def process_content():
     """Phase 3: Content Processing - Labeler and Metadata Generator systems."""
     pass
 
 
-@phase3.command()
+@process_content.command()
 @click.argument('video_id')
 @click.option('--embedding-file', type=click.Path(exists=True), help='Embedding data file')
 @click.option('--search-file', type=click.Path(exists=True), help='Search results file')
@@ -367,7 +367,7 @@ def labeler(video_id: str, embedding_file: Optional[str], search_file: Optional[
         console.print(f"[green]Labels saved to: {output}[/green]")
 
 
-@phase3.command()
+@process_content.command()
 @click.argument('text_file', type=click.Path(exists=True))
 @click.option('--video-id', help='Video ID')
 @click.option('--output', '-o', type=click.Path(), help='Output file for metadata')
@@ -407,12 +407,12 @@ def metadata_gen(text_file: str, video_id: Optional[str], output: Optional[str])
 
 
 @main.group()
-def phase4():
+def store_data():
     """Phase 4: Data Storage - Store processed data in databases."""
     pass
 
 
-@phase4.command()
+@store_data.command()
 @click.argument('video_id')
 @click.option('--metadata-file', type=click.Path(exists=True), help='Metadata file')
 @click.option('--labels-file', type=click.Path(exists=True), help='Labels file')
@@ -508,12 +508,12 @@ def store(video_id: str, metadata_file: Optional[str], labels_file: Optional[str
 
 
 @main.group()
-def phase5():
+def create_search_index():
     """Phase 5: Search Index Creation - Create searchable index from all data."""
     pass
 
 
-@phase5.command()
+@create_search_index.command()
 @click.argument('asset_id')
 @click.option('--video-id', help='Video ID')
 @click.option('--metadata-file', type=click.Path(exists=True), help='Metadata file')
@@ -782,6 +782,12 @@ def inspect():
 @main.group()
 def output():
     """Enhanced output and data export."""
+    pass
+
+
+@main.group()
+def test():
+    """Convenience test commands for key functionality."""
     pass
 
 
@@ -1469,6 +1475,247 @@ def search_export(query: str, output_dir: str, limit: int, output_format: str):
     console.print(f"📁 Output file: {output_file}")
     console.print(f"📊 Results: {len(search_results.results)} items")
     console.print(f"📊 Format: {output_format.upper()}")
+
+
+@test.command()
+@click.argument('query', default='family picnic')
+@click.option('--limit', default=5, help='Number of search results')
+@click.option('--model', default='search-english-v1', help='Search model to use')
+@click.option('--output', '-o', type=click.Path(), help='Output file for results')
+def search(query: str, limit: int, model: str, output: Optional[str]):
+    """Test search functionality with default query."""
+    console.print(Panel(f"[bold blue]Search Test[/bold blue]\n[bold]Query:[/bold] {query}", title="Search Test"))
+    
+    # Perform search
+    search_service = SearchAPIService()
+    search_results = search_service.search_videos(query, model=model, limit=limit)
+    
+    # Display results
+    table = Table(title=f"Search Results for '{query}'")
+    table.add_column("Rank", style="cyan")
+    table.add_column("Video ID", style="green")
+    table.add_column("Score", style="yellow")
+    table.add_column("Text", style="magenta")
+    
+    for i, result in enumerate(search_results.results, 1):
+        text_preview = result.text[:50] + "..." if result.text and len(result.text) > 50 else (result.text or "N/A")
+        table.add_row(
+            str(i),
+            result.video_id,
+            f"{result.score:.3f}",
+            text_preview
+        )
+    
+    console.print(table)
+    
+    # Display summary
+    console.print(f"\n[bold]Search Summary:[/bold]")
+    console.print(f"📊 Query: {query}")
+    console.print(f"📊 Model: {model}")
+    console.print(f"📊 Results: {len(search_results.results)}")
+    console.print(f"📊 Total available: {search_results.total}")
+    console.print(f"📊 Average score: {sum(r.score for r in search_results.results) / len(search_results.results):.3f}")
+    
+    if output:
+        with open(output, 'w') as f:
+            json.dump(search_results.model_dump(), f, indent=2)
+        console.print(f"[green]Results saved to: {output}[/green]")
+
+
+@test.command()
+@click.argument('text', default='A family enjoying a picnic in the park on a sunny afternoon. Children are playing while adults are setting up food on a blanket.')
+@click.option('--output', '-o', type=click.Path(), help='Output file for results')
+def metadata(text: str, output: Optional[str]):
+    """Test metadata generation logic with sample text."""
+    console.print(Panel(f"[bold blue]Metadata Generation Test[/bold blue]\n[bold]Input Text:[/bold] {text[:100]}...", title="Metadata Test"))
+    
+    # Process through metadata generator
+    metadata_service = MetadataGeneratorService()
+    metadata_output = metadata_service.process_text_description(text)
+    
+    # Display results
+    console.print(f"\n[bold]Generated Metadata:[/bold]")
+    console.print(f"📝 Summary: {metadata_output.summary}")
+    console.print(f"🏷️ Keywords: {', '.join(metadata_output.keywords)}")
+    console.print(f"📂 Categories: {', '.join(metadata_output.categories)}")
+    console.print(f"🏷️ Tags: {', '.join(metadata_output.tags)}")
+    console.print(f"🔍 Search Text: {metadata_output.search_text}")
+    
+    # Display statistics
+    console.print(f"\n[bold]Metadata Statistics:[/bold]")
+    console.print(f"📊 Keywords extracted: {len(metadata_output.keywords)}")
+    console.print(f"📊 Categories assigned: {len(metadata_output.categories)}")
+    console.print(f"📊 Tags generated: {len(metadata_output.tags)}")
+    console.print(f"📊 Search text length: {len(metadata_output.search_text)} characters")
+    
+    if output:
+        with open(output, 'w') as f:
+            json.dump(metadata_output.model_dump(), f, indent=2)
+        console.print(f"[green]Metadata saved to: {output}[/green]")
+
+
+@test.command()
+@click.argument('asset_id', default='test_asset_001')
+@click.option('--embedding-file', type=click.Path(exists=True), help='Embedding data file')
+@click.option('--search-file', type=click.Path(exists=True), help='Search results file')
+@click.option('--generate-file', type=click.Path(exists=True), help='Generated text file')
+@click.option('--output', '-o', type=click.Path(), help='Output file for results')
+def eval(asset_id: str, embedding_file: Optional[str], search_file: Optional[str], generate_file: Optional[str], output: Optional[str]):
+    """Test evaluation logic with sample data."""
+    console.print(Panel(f"[bold blue]Evaluation Logic Test[/bold blue]\n[bold]Asset ID:[/bold] {asset_id}", title="Evaluation Test"))
+    
+    # Generate sample data if files not provided
+    if not embedding_file:
+        embed_service = EmbedAPIService()
+        embedding = embed_service.create_embedding(asset_id)
+        embedding_data = embedding
+    else:
+        with open(embedding_file, 'r') as f:
+            embedding_data = EmbeddingResponse(**json.load(f))
+    
+    if not search_file:
+        search_service = SearchAPIService()
+        search_results = search_service.search_videos(f"content from {asset_id}")
+        search_data = search_results
+    else:
+        with open(search_file, 'r') as f:
+            search_data = SearchResponse(**json.load(f))
+    
+    if not generate_file:
+        generate_service = GenerateAPIService()
+        generated_text = generate_service.generate_description(asset_id)
+        generate_data = generated_text
+    else:
+        with open(generate_file, 'r') as f:
+            generate_data = GenerateResponse(**json.load(f))
+    
+    # Process through labeler
+    labeler_service = LabelerService()
+    labels = labeler_service.process_asset(asset_id, embedding_data.embedding, search_data.results, generate_data.text)
+    
+    # Display evaluation results
+    console.print(f"\n[bold]Evaluation Results:[/bold]")
+    console.print(f"🏷️ Labels: {', '.join(labels.labels)}")
+    console.print(f"📊 Confidence Scores: {[f'{c:.2f}' for c in labels.confidence]}")
+    console.print(f"📂 Categories: {', '.join(labels.categories)}")
+    
+    # Calculate evaluation metrics
+    avg_confidence = sum(labels.confidence) / len(labels.confidence) if labels.confidence else 0
+    label_count = len(labels.labels)
+    category_count = len(labels.categories)
+    
+    console.print(f"\n[bold]Evaluation Metrics:[/bold]")
+    console.print(f"📊 Labels generated: {label_count}")
+    console.print(f"📊 Categories identified: {category_count}")
+    console.print(f"📊 Average confidence: {avg_confidence:.3f}")
+    console.print(f"📊 High confidence labels (>0.8): {sum(1 for c in labels.confidence if c > 0.8)}")
+    
+    # Display input data summary
+    console.print(f"\n[bold]Input Data Summary:[/bold]")
+    console.print(f"📊 Embedding dimensions: {embedding_data.dimensions}")
+    console.print(f"📊 Search results: {len(search_data.results)}")
+    console.print(f"📊 Generated text length: {len(generate_data.text)} characters")
+    
+    if output:
+        eval_results = {
+            "asset_id": asset_id,
+            "labels": labels.model_dump(),
+            "embedding": embedding_data.model_dump(),
+            "search_results": search_data.model_dump(),
+            "generated_text": generate_data.model_dump(),
+            "metrics": {
+                "label_count": label_count,
+                "category_count": category_count,
+                "avg_confidence": avg_confidence,
+                "high_confidence_count": sum(1 for c in labels.confidence if c > 0.8)
+            }
+        }
+        with open(output, 'w') as f:
+            json.dump(eval_results, f, indent=2)
+        console.print(f"[green]Evaluation results saved to: {output}[/green]")
+
+
+@test.command()
+@click.option('--output-dir', '-o', default='test_results', help='Output directory for all test results')
+def all(output_dir: str):
+    """Run all tests and save results."""
+    console.print(Panel(f"[bold blue]Running All Tests[/bold blue]\n[bold]Output Directory:[/bold] {output_dir}", title="All Tests"))
+    
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+    
+    # Test 1: Search
+    console.print("\n[bold]1. Testing Search Functionality[/bold]")
+    search_service = SearchAPIService()
+    search_results = search_service.search_videos("family picnic", limit=3)
+    
+    with open(output_path / "test_search.json", 'w') as f:
+        json.dump(search_results.model_dump(), f, indent=2)
+    console.print("✅ Search test completed")
+    
+    # Test 2: Metadata Generation
+    console.print("\n[bold]2. Testing Metadata Generation[/bold]")
+    metadata_service = MetadataGeneratorService()
+    sample_text = "A family enjoying a picnic in the park on a sunny afternoon. Children are playing while adults are setting up food on a blanket."
+    metadata_output = metadata_service.process_text_description(sample_text)
+    
+    with open(output_path / "test_metadata.json", 'w') as f:
+        json.dump(metadata_output.model_dump(), f, indent=2)
+    console.print("✅ Metadata generation test completed")
+    
+    # Test 3: Evaluation Logic
+    console.print("\n[bold]3. Testing Evaluation Logic[/bold]")
+    labeler_service = LabelerService()
+    embed_service = EmbedAPIService()
+    generate_service = GenerateAPIService()
+    
+    asset_id = "test_asset_001"
+    embedding = embed_service.create_embedding(asset_id)
+    generated_text = generate_service.generate_description(asset_id)
+    labels = labeler_service.process_asset(asset_id, embedding.embedding, search_results.results, generated_text.text)
+    
+    eval_results = {
+        "asset_id": asset_id,
+        "labels": labels.model_dump(),
+        "embedding": embedding.model_dump(),
+        "search_results": search_results.model_dump(),
+        "generated_text": generated_text.model_dump()
+    }
+    
+    with open(output_path / "test_eval.json", 'w') as f:
+        json.dump(eval_results, f, indent=2)
+    console.print("✅ Evaluation logic test completed")
+    
+    # Generate test summary
+    summary = {
+        "test_run": datetime.now().isoformat(),
+        "tests": {
+            "search": {
+                "status": "completed",
+                "results_file": "test_search.json",
+                "results_count": len(search_results.results)
+            },
+            "metadata": {
+                "status": "completed",
+                "results_file": "test_metadata.json",
+                "keywords_count": len(metadata_output.keywords),
+                "categories_count": len(metadata_output.categories)
+            },
+            "evaluation": {
+                "status": "completed",
+                "results_file": "test_eval.json",
+                "labels_count": len(labels.labels),
+                "avg_confidence": sum(labels.confidence) / len(labels.confidence) if labels.confidence else 0
+            }
+        }
+    }
+    
+    with open(output_path / "test_summary.json", 'w') as f:
+        json.dump(summary, f, indent=2)
+    
+    console.print(f"\n✅ All tests completed successfully!")
+    console.print(f"📁 Results saved to: {output_path}")
+    console.print(f"📊 Files generated: test_search.json, test_metadata.json, test_eval.json, test_summary.json")
 
 
 @spec.command()

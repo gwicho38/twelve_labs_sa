@@ -46,6 +46,7 @@ The project includes a comprehensive build script that creates both a wheel and 
 ```
 
 This will create:
+
 - `dist/twelve_labs_sa-0.1.0-py3-none-any.whl` - Python wheel package
 - `./twelve-labs-sa` - Standalone executable binary
 
@@ -83,51 +84,51 @@ The CLI is organized into 5 phases, each corresponding to a different stage of t
 
 ```bash
 # Validate a media file and extract metadata
-twelve-labs-sa phase1 validate video.mp4 --output metadata.json
+twelve-labs-sa process-raw-file validate video.mp4 --output metadata.json
 # or using the tl alias:
-tl phase1 validate video.mp4 --output metadata.json
+tl process-raw-file validate video.mp4 --output metadata.json
 
 # Upload video to Twelve Labs
-twelve-labs-sa phase1 upload video.mp4 --title "My Video" --output video_metadata.json
+twelve-labs-sa process-raw-file upload video.mp4 --title "My Video" --output video_metadata.json
 # or using the tl alias:
-tl phase1 upload video.mp4 --title "My Video" --output video_metadata.json
+tl process-raw-file upload video.mp4 --title "My Video" --output video_metadata.json
 ```
 
 ### Phase 2: Twelve Labs API Calls
 
 ```bash
 # Generate vector embedding
-twelve-labs-sa phase2 embed video_id --model embed-english-v1 --output embedding.json
+twelve-labs-sa call-twelve-labs-apis embed video_id --model embed-english-v1 --output embedding.json
 
 # Search for videos using text query
-twelve-labs-sa phase2 search-text "family picnic" --output search_results.json
+twelve-labs-sa call-twelve-labs-apis search-text "family picnic" --output search_results.json
 
 # Search for similar videos using video as query
-twelve-labs-sa phase2 search-video video_id --output similar_videos.json
+twelve-labs-sa call-twelve-labs-apis search-video video_id --output similar_videos.json
 
 # Generate text description
-twelve-labs-sa phase2 generate video_id --model generate-english-v1 --output generated_text.json
+twelve-labs-sa call-twelve-labs-apis generate video_id --model generate-english-v1 --output generated_text.json
 ```
 
 ### Phase 3: Content Processing
 
 ```bash
 # Process through Labeler system
-twelve-labs-sa phase3 labeler video_id \
+twelve-labs-sa process-content labeler video_id \
   --embedding-file embedding.json \
   --search-file search_results.json \
   --generate-file generated_text.json \
   --output labels.json
 
 # Process through Metadata Generator
-twelve-labs-sa phase3 metadata-gen generated_text.json --video-id video_id --output metadata.json
+twelve-labs-sa process-content metadata-gen generated_text.json --video-id video_id --output metadata.json
 ```
 
 ### Phase 4: Data Storage
 
 ```bash
 # Store processed data in databases
-twelve-labs-sa phase4 store video_id \
+twelve-labs-sa store-data store video_id \
   --metadata-file metadata.json \
   --labels-file labels.json \
   --embedding-file embedding.json
@@ -137,7 +138,7 @@ twelve-labs-sa phase4 store video_id \
 
 ```bash
 # Create search index entry
-twelve-labs-sa phase5 create-index asset_id \
+twelve-labs-sa create-search-index create-index asset_id \
   --video-id video_id \
   --metadata-file metadata.json \
   --embedding-file embedding.json \
@@ -205,6 +206,27 @@ tl output export-data video.mp4 --format yaml
 tl output search-export "family picnic" --limit 10 --format json
 ```
 
+### Convenience Test Commands
+
+Quick test commands for key functionality:
+
+```bash
+# Test search functionality
+tl test search
+tl test search "outdoor activities" --limit 3
+
+# Test metadata generation
+tl test metadata
+tl test metadata "Children playing in the garden with toys"
+
+# Test evaluation logic
+tl test eval
+tl test eval test_asset_002 --output eval_results.json
+
+# Run all tests
+tl test all --output-dir comprehensive_tests
+```
+
 ### Modality Information
 
 ```bash
@@ -224,24 +246,24 @@ twelve-labs-sa [COMMAND] [OPTIONS]
 tl [COMMAND] [OPTIONS]
 ```
 
-```
+```md
 twelve-labs-sa / tl
 ├── modalities - Modality-specific operations
 │   └── list - List supported modalities
-├── phase1 (Raw Asset Input)
+├── process-raw-file (Phase 1: Raw Asset Input)
 │   ├── validate - Validate file and extract metadata
 │   └── upload - Upload video to Twelve Labs
-├── phase2 (Twelve Labs API Calls)
+├── call-twelve-labs-apis (Phase 2: Twelve Labs API Calls)
 │   ├── embed - Generate vector embedding
 │   ├── search-text - Search for videos using text query
 │   ├── search-video - Search for similar videos using video as query
 │   └── generate - Generate text description
-├── phase3 (Content Processing)
+├── process-content (Phase 3: Content Processing)
 │   ├── labeler - Process through Labeler system
 │   └── metadata-gen - Process through Metadata Generator
-├── phase4 (Data Storage)
+├── store-data (Phase 4: Data Storage)
 │   └── store - Store processed data in databases
-├── phase5 (Search Index Creation)
+├── create-search-index (Phase 5: Search Index Creation)
 │   └── create-index - Create search index entry
 ├── batch - Batch processing operations
 │   └── process-batch - Process multiple files from directory or ZIP
@@ -251,6 +273,11 @@ twelve-labs-sa / tl
 ├── output - Enhanced output and data export
 │   ├── export-data - Export all data for a processed file
 │   └── search-export - Export search results with embeddings
+├── test - Convenience test commands for key functionality
+│   ├── search - Test search functionality with default query
+│   ├── metadata - Test metadata generation logic with sample text
+│   ├── eval - Test evaluation logic with sample data
+│   └── all - Run all tests and save results
 ├── spec - Specification compliance demonstration
 │   ├── compliance-demo - Demonstrate spec compliance
 │   └── process-asset - Process specific asset
@@ -307,7 +334,7 @@ mypy twelve_labs_sa/
 
 ### Project Structure
 
-```
+```md
 twelve_labs_sa/
 ├── __init__.py          # Package initialization
 ├── cli.py              # Main CLI application
@@ -360,4 +387,4 @@ The CLI includes comprehensive error handling:
 
 ## License
 
-MIT License 
+MIT License
