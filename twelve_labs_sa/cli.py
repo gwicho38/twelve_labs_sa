@@ -110,6 +110,81 @@ def assets():
     pass
 
 
+@assets.command()
+@click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
+@click.option('--output', '-o', type=click.Path(), help='Output file for asset list')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend (default)')
+@click.option('--use-file-storage', is_flag=True, help='Use file-based storage instead of LanceDB')
+def list(storage_dir: str, output: Optional[str], use_lancedb: bool, use_file_storage: bool):
+    """List all assets in the vector store."""
+    console.print(Panel("[bold blue]Asset List[/bold blue]", title="Asset Management"))
+    
+    # Get storage backend
+    db_service = DatabaseService(storage_dir, use_lancedb=get_storage_backend(use_lancedb, use_file_storage))
+    stored_assets = db_service.get_all_assets()
+    
+    if not stored_assets:
+        console.print("[yellow]No assets found in the vector store.[/yellow]")
+        console.print("\n[bold]To add assets:[/bold]")
+        console.print("1. Use 'tl assets process <file>' to process a complete asset")
+        console.print("2. Use 'tl storage store <video_id>' to store processed data")
+        return
+    
+    # Display assets in a table
+    table = Table(title="Asset List")
+    table.add_column("Asset ID", style="cyan")
+    table.add_column("File Name", style="green")
+    table.add_column("Modality", style="yellow")
+    table.add_column("Size", style="magenta")
+    table.add_column("Created", style="blue")
+    table.add_column("Video ID", style="red")
+    
+    for asset_id, asset in stored_assets.items():
+        # Format creation date
+        created_date = asset.created_at[:10] if asset.created_at else "N/A"
+        
+        table.add_row(
+            asset_id,
+            asset.file_name,
+            asset.modality,
+            asset.file_size,
+            created_date,
+            asset.video_id or "N/A"
+        )
+    
+    console.print(table)
+    
+    # Display summary statistics
+    console.print(f"\n[bold]Asset Summary:[/bold]")
+    console.print(f"📊 Total assets: {len(stored_assets)}")
+    
+    # Count by modality
+    modalities = {}
+    for asset in stored_assets.values():
+        modality = asset.modality
+        modalities[modality] = modalities.get(modality, 0) + 1
+    
+    for modality, count in modalities.items():
+        console.print(f"📊 {modality.capitalize()}: {count}")
+    
+    # Save to file if requested
+    if output:
+        asset_list = []
+        for asset_id, asset in stored_assets.items():
+            asset_list.append({
+                "asset_id": asset_id,
+                "file_name": asset.file_name,
+                "modality": asset.modality,
+                "file_size": asset.file_size,
+                "created_at": asset.created_at,
+                "video_id": asset.video_id
+            })
+        
+        with open(output, 'w') as f:
+            json.dump(asset_list, f, indent=2)
+        console.print(f"[green]Asset list saved to: {output}[/green]")
+
+
 @assets.group()
 def validate():
     """File validation and metadata extraction."""
