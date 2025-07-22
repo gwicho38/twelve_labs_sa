@@ -2,7 +2,6 @@
 
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
-from datetime import datetime
 
 
 class FileMetadata(BaseModel):
@@ -29,6 +28,13 @@ class VideoMetadata(BaseModel):
     status: str = "ready"
 
 
+class TemporalInfo(BaseModel):
+    """Temporal information for video embeddings."""
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
+    scope: Optional[str] = None
+
+
 class EmbeddingResponse(BaseModel):
     """Response from Embed API."""
     embedding: List[float]
@@ -36,6 +42,7 @@ class EmbeddingResponse(BaseModel):
     dimensions: int = 1536
     video_id: Optional[str] = None
     modality: str = "video"
+    temporal_info: Optional[TemporalInfo] = None
 
 
 class SearchResult(BaseModel):

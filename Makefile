@@ -17,13 +17,17 @@ help:
 	@echo "  install        - Install the package in development mode"
 	@echo "  dev-setup      - Set up development environment"
 	@echo "  deps           - Install dependencies"
-	@echo "  lint           - Run linting checks"
+	@echo "  lint           - Run linting checks (use ARGS='--fix' to auto-fix)"
 	@echo "  format         - Format code with black"
 	@echo "  check-all      - Run all checks (lint, format, test)"
 	@echo "  demo           - Run quick demo"
 	@echo "  info           - Show project information"
 	@echo "  commands       - Show all available commands"
 	@echo "  help           - Show this help message"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make lint ARGS='--fix'     - Run linting with auto-fix"
+	@echo "  make lint ARGS='--select E,W' - Run linting with specific rules"
 
 # Build wheel and executable
 build:
@@ -95,7 +99,7 @@ deps:
 # Run linting checks
 lint:
 	@echo "🔍 Running linting checks..."
-	@uv run ruff check .
+	@uv run ruff check . $(ARGS)
 	@echo "✅ Linting completed"
 
 # Format code
@@ -164,4 +168,10 @@ commands:
 	@echo "  make dev           - Development workflow"
 	@echo "  make prod          - Production build"
 	@echo "  make info          - Show project info"
-	@echo "  make commands      - Show this command list" 
+	@echo "  make commands      - Show this command list"
+	@echo ""
+	@echo "📋 Linting Examples:"
+	@echo "  make lint ARGS='--fix'           - Auto-fix linting issues"
+	@echo "  make lint ARGS='--select E,W'    - Check specific rule categories"
+	@echo "  make lint ARGS='--ignore E501'   - Ignore specific rules"
+	@echo "  make lint ARGS='--output-format=json' - JSON output format" 

@@ -1,7 +1,6 @@
 """Configuration settings for Twelve Labs API."""
 
 import os
-from typing import Optional
 
 from dotenv import load_dotenv
 

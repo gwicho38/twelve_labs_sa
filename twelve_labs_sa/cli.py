@@ -16,15 +16,12 @@ from .config import Config
 from .models import (
     AssetRecord,
     EmbeddingResponse,
-    FileMetadata,
     GenerateResponse,
     LabelRecord,
-    LabelerOutput,
     MetadataOutput,
-    SearchIndexEntry,
     SearchResponse,
     VectorRecord,
-    VideoMetadata,
+    TemporalInfo,
 )
 from .services import (
     DatabaseService,
@@ -42,10 +39,41 @@ from .services import (
 console = Console()
 
 
+def show_vector_store_state(storage_dir: str = '.vector_store'):
+    """Helper function to display current vector store state."""
+    db_service = DatabaseService(storage_dir)
+    stored_vectors = db_service.get_all_vectors()
+    stored_assets = db_service.get_all_assets()
+    stored_labels = db_service.get_all_labels()
+    
+    if stored_vectors or stored_assets:
+        console.print("\n[bold cyan]📊 Current Vector Store State:[/bold cyan]")
+        console.print(f"  • Assets: {len(stored_assets)}")
+        console.print(f"  • Vectors: {len(stored_vectors)}")
+        console.print(f"  • Label sets: {len(stored_labels)}")
+        
+        if stored_assets:
+            recent_assets = list(stored_assets.items())[-3:]  # Show last 3
+            console.print("  • Recent assets:")
+            for asset_id, asset in recent_assets:
+                console.print(f"    - {asset_id}: {asset.file_name}")
+    else:
+        console.print("\n[bold yellow]📊 Vector Store: Empty[/bold yellow]")
+
+
 @click.group()
 @click.version_option()
 def main():
-    """Twelve Labs Single Asset Process CLI - Trace each step of the granular process."""
+    """Twelve Labs Single Asset Process CLI - Trace each step of the granular process.
+    
+    Real video assets are available for testing:
+    - Live-action: resources/assets/sa_interview_assets/live-action/
+    - Animations: resources/assets/sa_interview_assets/animations/
+    
+    Examples:
+        twelve-labs-sa process-all resources/assets/sa_interview_assets/live-action/asset1.mp4
+        twelve-labs-sa batch process-batch resources/assets/sa_interview_assets/animations/ --use-lancedb
+    """
     # Validate API key
     if not Config.validate_api_key():
         console.print("[red]Error: Invalid or missing API key. Please set TWELVE_LABS_API_KEY environment variable.[/red]")
@@ -165,7 +193,7 @@ def embed(video_id: str, model: str, output: Optional[str]):
         progress.update(task, completed=True)
     
     # Display results
-    console.print(f"[green]✓[/green] Embedding generated successfully")
+    console.print("[green]✓[/green] Embedding generated successfully")
     console.print(f"[cyan]Model:[/cyan] {response.model}")
     console.print(f"[cyan]Dimensions:[/cyan] {response.dimensions}")
     console.print(f"[cyan]Video ID:[/cyan] {response.video_id}")
@@ -175,6 +203,11 @@ def embed(video_id: str, model: str, output: Optional[str]):
         with open(output, 'w') as f:
             json.dump(response.model_dump(), f, indent=2)
         console.print(f"[green]Embedding saved to: {output}[/green]")
+    
+    # Show vector store state (note: embedding not stored yet, just generated)
+    console.print("\n[bold yellow]Note:[/bold yellow] Embedding generated but not stored in vector store yet.")
+    console.print("Use 'tl store-data store <video_id>' to store the embedding.")
+    show_vector_store_state()
 
 
 @call_twelve_labs_apis.command()
@@ -200,7 +233,7 @@ def search_text(query: str, index_id: Optional[str], model: str, limit: int, out
         progress.update(task, completed=True)
     
     # Display results
-    console.print(f"[green]✓[/green] Search completed")
+    console.print("[green]✓[/green] Search completed")
     console.print(f"[cyan]Total Results:[/cyan] {response.total}")
     console.print(f"[cyan]Page:[/cyan] {response.page}")
     console.print(f"[cyan]Limit:[/cyan] {response.limit}")
@@ -245,7 +278,7 @@ def search_video(video_id: str, index_id: Optional[str], model: str, limit: int,
         progress.update(task, completed=True)
     
     # Display results
-    console.print(f"[green]✓[/green] Similar videos found")
+    console.print("[green]✓[/green] Similar videos found")
     console.print(f"[cyan]Total Results:[/cyan] {response.total}")
     console.print(f"[cyan]Page:[/cyan] {response.page}")
     console.print(f"[cyan]Limit:[/cyan] {response.limit}")
@@ -288,7 +321,7 @@ def generate(video_id: str, model: str, output: Optional[str]):
         progress.update(task, completed=True)
     
     # Display results
-    console.print(f"[green]✓[/green] Text description generated")
+    console.print("[green]✓[/green] Text description generated")
     console.print(f"[cyan]Model:[/cyan] {response.model}")
     console.print(f"[cyan]Video ID:[/cyan] {response.video_id}")
     console.print(f"[cyan]Description:[/cyan] {response.text}")
@@ -348,7 +381,7 @@ def labeler(video_id: str, embedding_file: Optional[str], search_file: Optional[
         progress.update(task, completed=True)
     
     # Display results
-    console.print(f"[green]✓[/green] Labels generated successfully")
+    console.print("[green]✓[/green] Labels generated successfully")
     console.print(f"[cyan]Video ID:[/cyan] {result.video_id}")
     
     table = Table(title="Generated Labels")
@@ -393,7 +426,7 @@ def metadata_gen(text_file: str, video_id: Optional[str], output: Optional[str])
         progress.update(task, completed=True)
     
     # Display results
-    console.print(f"[green]✓[/green] Metadata generated successfully")
+    console.print("[green]✓[/green] Metadata generated successfully")
     console.print(f"[cyan]Video ID:[/cyan] {result.video_id}")
     console.print(f"[cyan]Summary:[/cyan] {result.summary}")
     console.print(f"[cyan]Keywords:[/cyan] {', '.join(result.keywords)}")
@@ -501,10 +534,13 @@ def store(video_id: str, metadata_file: Optional[str], labels_file: Optional[str
         db_service.store_labels(label_record)
         progress.update(task3, completed=True)
     
-    console.print(f"[green]✓[/green] Data stored successfully")
+    console.print("[green]✓[/green] Data stored successfully")
     console.print(f"[cyan]Asset ID:[/cyan] {asset_id}")
     console.print(f"[cyan]Video ID:[/cyan] {video_id}")
-    console.print(f"[cyan]Records stored:[/cyan] Asset, Vector, Labels")
+    console.print("[cyan]Records stored:[/cyan] Asset, Vector, Labels")
+    
+    # Show updated vector store state
+    show_vector_store_state('.vector_store')
 
 
 @main.group()
@@ -562,7 +598,7 @@ def create_index(asset_id: str, video_id: Optional[str], metadata_file: Optional
         progress.update(task, completed=True)
     
     # Display results
-    console.print(f"[green]✓[/green] Search index created successfully")
+    console.print("[green]✓[/green] Search index created successfully")
     console.print(f"[cyan]Asset ID:[/cyan] {result.asset_id}")
     console.print(f"[cyan]Video ID:[/cyan] {result.video_id}")
     console.print(f"[cyan]Modality:[/cyan] {result.modality}")
@@ -673,7 +709,7 @@ def process_all(file_path: str, title: Optional[str], output_dir: Optional[str])
     # Phase 4: Data Storage
     console.print("\n[bold cyan]Phase 4: Data Storage[/bold cyan]")
     asset_id = f"asset_{uuid.uuid4().hex[:8]}"
-    db_service = DatabaseService()
+    db_service = DatabaseService(".vector_store")  # Use persistent storage
     
     asset_record = AssetRecord(
         asset_id=asset_id,
@@ -725,11 +761,14 @@ def process_all(file_path: str, title: Optional[str], output_dir: Optional[str])
         with open(index_file, 'w') as f:
             json.dump(search_index.model_dump(), f, indent=2)
     
-    console.print(f"\n[bold green]✓[/bold green] Complete process finished successfully!")
+    console.print("\n[bold green]✓[/bold green] Complete process finished successfully!")
     console.print(f"[cyan]Asset ID:[/cyan] {asset_id}")
     console.print(f"[cyan]Video ID:[/cyan] {video_metadata.video_id}")
     if output_dir:
         console.print(f"[cyan]Output files saved to:[/cyan] {output_dir}")
+    
+    # Show final vector store state
+    show_vector_store_state()
 
 
 @main.group()
@@ -1073,7 +1112,7 @@ def process_batch(input_path: str, output_dir: str, recursive: bool, file_types:
     with open(output_path / "batch_summary.json", "w") as f:
         json.dump(batch_summary, f, indent=2)
     
-    console.print(f"\n✅ Batch processing completed!")
+    console.print("\n✅ Batch processing completed!")
     console.print(f"📊 Processed {len(results)}/{len(files_to_process)} files")
     console.print(f"📁 Results saved to: {output_path}")
 
@@ -1123,66 +1162,27 @@ def process_single_file(file_path: str, output_dir: Path) -> dict:
 
 @inspect.command()
 @click.option('--output', '-o', type=click.Path(), help='Output file for vector store data')
-def vector_store(output: Optional[str]):
+@click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def vector_store(output: Optional[str], storage_dir: str, use_lancedb: bool):
     """Inspect the internal vector store state."""
     console.print(Panel("[bold blue]Vector Store Inspection[/bold blue]", title="Vector Store"))
     
     # Get vector store data from services
-    db_service = DatabaseService()
-    search_service = SearchIndexService()
+    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
     
-    # Simulate some stored data
-    sample_vectors = {
-        "vec_001": VectorRecord(
-            asset_id="asset_001",
-            embedding=[0.1, 0.5, -0.3, 0.8, -0.2, 0.6] * 256,
-            model="embed-english-v1",
-            dimensions=1536
-        ),
-        "vec_002": VectorRecord(
-            asset_id="asset_002", 
-            embedding=[0.2, 0.4, -0.1, 0.9, -0.3, 0.7] * 256,
-            model="embed-english-v1",
-            dimensions=1536
-        )
-    }
+    # Get actual stored data using retrieval methods
+    stored_vectors = db_service.get_all_vectors()
+    stored_assets = db_service.get_all_assets()
+    stored_labels = db_service.get_all_labels()
     
-    sample_assets = {
-        "asset_001": AssetRecord(
-            asset_id="asset_001",
-            file_name="video1.mp4",
-            file_size="15.2MB",
-            format="mp4",
-            modality="video",
-            metadata=MetadataOutput(
-                summary="A family enjoying a picnic in the park",
-                keywords=["family", "picnic", "park", "outdoor"],
-                categories=["lifestyle", "family", "outdoor"],
-                tags=["#family", "#picnic", "#outdoor"],
-                search_text="family picnic park outdoor lifestyle",
-                video_id="asset_001"
-            ),
-            labels=["family", "outdoor", "picnic", "lifestyle"],
-            created_at=datetime.now().isoformat()
-        ),
-        "asset_002": AssetRecord(
-            asset_id="asset_002",
-            file_name="video2.mp4", 
-            file_size="12.8MB",
-            format="mp4",
-            modality="video",
-            metadata=MetadataOutput(
-                summary="Children playing in the garden",
-                keywords=["children", "playing", "garden", "outdoor"],
-                categories=["family", "outdoor", "children"],
-                tags=["#children", "#playing", "#garden"],
-                search_text="children playing garden outdoor family",
-                video_id="asset_002"
-            ),
-            labels=["children", "outdoor", "playing", "family"],
-            created_at=datetime.now().isoformat()
-        )
-    }
+    if not stored_vectors and not stored_assets:
+        console.print("[yellow]No data found in vector store. Run some operations first to populate the store.[/yellow]")
+        console.print("\n[bold]To populate the vector store:[/bold]")
+        console.print("1. Use 'tl process-all <file>' to process a complete asset")
+        console.print("2. Use 'tl store-data store <video_id>' to store processed data")
+        console.print("3. Use 'tl call-twelve-labs-apis embed <video_id>' to generate embeddings")
+        return
     
     # Display vector store information
     table = Table(title="Vector Store Contents")
@@ -1191,36 +1191,57 @@ def vector_store(output: Optional[str]):
     table.add_column("Modality", style="yellow")
     table.add_column("Embedding Dimensions", style="magenta")
     table.add_column("Model", style="blue")
+    table.add_column("Labels", style="red")
     
-    for asset_id, asset in sample_assets.items():
-        vector = sample_vectors.get(asset_id)
-        if vector:
-            table.add_row(
-                asset_id,
-                asset.file_name,
-                asset.modality,
-                str(vector.dimensions),
-                vector.model
-            )
+    for asset_id, asset in stored_assets.items():
+        vector = stored_vectors.get(asset_id)
+        labels = stored_labels.get(asset_id)
+        label_count = len(labels.labels) if labels else 0
+        
+        table.add_row(
+            asset_id,
+            asset.file_name,
+            asset.modality,
+            str(vector.dimensions) if vector else "N/A",
+            vector.model if vector else "N/A",
+            f"{label_count} labels" if labels else "N/A"
+        )
     
     console.print(table)
     
     # Display embedding statistics
-    console.print("\n[bold]Embedding Statistics:[/bold]")
-    console.print(f"📊 Total vectors: {len(sample_vectors)}")
-    console.print(f"📊 Average dimensions: {sum(v.dimensions for v in sample_vectors.values()) / len(sample_vectors)}")
-    console.print(f"📊 Models used: {list(set(v.model for v in sample_vectors.values()))}")
+    console.print("\n[bold]Vector Store Statistics:[/bold]")
+    console.print(f"📊 Total assets: {len(stored_assets)}")
+    console.print(f"📊 Total vectors: {len(stored_vectors)}")
+    console.print(f"📊 Total label sets: {len(stored_labels)}")
+    
+    if stored_vectors:
+        avg_dimensions = sum(v.dimensions for v in stored_vectors.values()) / len(stored_vectors)
+        console.print(f"📊 Average embedding dimensions: {avg_dimensions:.0f}")
+        console.print(f"📊 Models used: {list(set(v.model for v in stored_vectors.values()))}")
+    
+    if stored_assets:
+        modalities = list(set(a.modality for a in stored_assets.values()))
+        console.print(f"📊 Modalities: {modalities}")
+    
+    # Show recent operations
+    if stored_assets:
+        console.print("\n[bold]Recent Assets:[/bold]")
+        for asset_id, asset in list(stored_assets.items())[-5:]:  # Show last 5
+            console.print(f"  • {asset_id}: {asset.file_name} ({asset.modality})")
     
     # Save to file if requested
     if output:
         vector_store_data = {
-            "vectors": {k: v.model_dump() for k, v in sample_vectors.items()},
-            "assets": {k: v.model_dump() for k, v in sample_assets.items()},
+            "vectors": {k: v.model_dump() for k, v in stored_vectors.items()},
+            "assets": {k: v.model_dump() for k, v in stored_assets.items()},
+            "labels": {k: v.model_dump() for k, v in stored_labels.items()},
             "statistics": {
-                "total_vectors": len(sample_vectors),
-                "total_assets": len(sample_assets),
-                "models": list(set(v.model for v in sample_vectors.values())),
-                "modalities": list(set(a.modality for a in sample_assets.values()))
+                "total_vectors": len(stored_vectors),
+                "total_assets": len(stored_assets),
+                "total_labels": len(stored_labels),
+                "models": list(set(v.model for v in stored_vectors.values())) if stored_vectors else [],
+                "modalities": list(set(a.modality for a in stored_assets.values())) if stored_assets else []
             }
         }
         
@@ -1230,9 +1251,185 @@ def vector_store(output: Optional[str]):
 
 
 @inspect.command()
+@click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
+@click.option('--export-path', '-e', type=click.Path(), help='Export path for vector store data')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def export_store(storage_dir: str, export_path: Optional[str], use_lancedb: bool):
+    """Export vector store data to a directory."""
+    console.print(Panel("[bold blue]Vector Store Export[/bold blue]", title="Export Store"))
+    
+    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    stats = db_service.get_store_stats()
+    
+    if stats['total_assets'] == 0:
+        console.print("[yellow]No data found in vector store to export.[/yellow]")
+        return
+    
+    if not export_path:
+        export_path = f"vector_store_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    db_service.export_store(export_path)
+    
+    console.print("[green]✓[/green] Vector store exported successfully")
+    console.print(f"[cyan]Export path:[/cyan] {export_path}")
+    console.print(f"[cyan]Assets exported:[/cyan] {stats['total_assets']}")
+    console.print(f"[cyan]Vectors exported:[/cyan] {stats['total_vectors']}")
+    console.print(f"[cyan]Labels exported:[/cyan] {stats['total_labels']}")
+    console.print(f"[cyan]Metadata exported:[/cyan] {stats['total_metadata']}")
+
+
+@inspect.command()
+@click.argument('import_path', type=click.Path(exists=True))
+@click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def import_store(import_path: str, storage_dir: str, use_lancedb: bool):
+    """Import vector store data from a directory."""
+    console.print(Panel(f"[bold blue]Vector Store Import[/bold blue]\n[bold]Import Path:[/bold] {import_path}", title="Import Store"))
+    
+    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    
+    # Check if import directory has required files
+    import_dir = Path(import_path)
+    required_files = ['assets.json', 'vectors.pkl', 'labels.json', 'metadata.json']
+    missing_files = [f for f in required_files if not (import_dir / f).exists()]
+    
+    if missing_files:
+        console.print(f"[red]Error: Missing required files: {missing_files}[/red]")
+        return
+    
+    # Import data
+    db_service.import_store(import_path)
+    
+    # Show imported data stats
+    stats = db_service.get_store_stats()
+    
+    console.print("[green]✓[/green] Vector store imported successfully")
+    console.print(f"[cyan]Assets imported:[/cyan] {stats['total_assets']}")
+    console.print(f"[cyan]Vectors imported:[/cyan] {stats['total_vectors']}")
+    console.print(f"[cyan]Labels imported:[/cyan] {stats['total_labels']}")
+    console.print(f"[cyan]Metadata imported:[/cyan] {stats['total_metadata']}")
+
+
+@inspect.command()
+@click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
+@click.option('--confirm', is_flag=True, help='Confirm clearing without prompt')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def clear_store(storage_dir: str, confirm: bool, use_lancedb: bool):
+    """Clear all data from vector store."""
+    console.print(Panel("[bold red]Clear Vector Store[/bold red]", title="Clear Store"))
+    
+    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    stats = db_service.get_store_stats()
+    
+    if stats['total_assets'] == 0:
+        console.print("[yellow]Vector store is already empty.[/yellow]")
+        return
+    
+    if not confirm:
+        console.print("[red]This will delete all stored data:[/red]")
+        console.print(f"  • {stats['total_assets']} assets")
+        console.print(f"  • {stats['total_vectors']} vectors")
+        console.print(f"  • {stats['total_labels']} label sets")
+        console.print(f"  • {stats['total_metadata']} metadata entries")
+        
+        if not click.confirm("Are you sure you want to continue?"):
+            console.print("[yellow]Operation cancelled.[/yellow]")
+            return
+    
+    db_service.clear_store()
+    console.print("[green]✓[/green] Vector store cleared successfully")
+
+
+@inspect.command()
+@click.argument('keyword')
+@click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
+@click.option('--output', '-o', type=click.Path(), help='Output file for search results')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def search_store(keyword: str, storage_dir: str, output: Optional[str], use_lancedb: bool):
+    """Search assets in vector store by keyword."""
+    console.print(Panel(f"[bold blue]Vector Store Search[/bold blue]\n[bold]Keyword:[/bold] {keyword}", title="Search Store"))
+    
+    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    results = db_service.search_assets_by_keyword(keyword)
+    
+    if not results:
+        console.print(f"[yellow]No assets found matching keyword: {keyword}[/yellow]")
+        return
+    
+    console.print(f"[green]✓[/green] Found {len(results)} matching assets")
+    
+    table = Table(title=f"Search Results for '{keyword}'")
+    table.add_column("Asset ID", style="cyan")
+    table.add_column("File Name", style="green")
+    table.add_column("Modality", style="yellow")
+    table.add_column("Summary", style="magenta")
+    
+    for asset in results[:10]:  # Show first 10 results
+        summary = asset.metadata.summary[:50] + "..." if asset.metadata and asset.metadata.summary and len(asset.metadata.summary) > 50 else "N/A"
+        table.add_row(asset.asset_id, asset.file_name, asset.modality, summary)
+    
+    console.print(table)
+    
+    if len(results) > 10:
+        console.print(f"[cyan]... and {len(results) - 10} more results[/cyan]")
+    
+    if output:
+        search_results = {
+            "keyword": keyword,
+            "total_results": len(results),
+            "results": [asset.model_dump() for asset in results]
+        }
+        with open(output, 'w') as f:
+            json.dump(search_results, f, indent=2)
+        console.print(f"[green]Search results saved to: {output}[/green]")
+
+
+@inspect.command()
+@click.argument('modality')
+@click.option('--storage-dir', default='.vector_store', help='Storage directory for vector store')
+@click.option('--output', '-o', type=click.Path(), help='Output file for results')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def list_by_modality(modality: str, storage_dir: str, output: Optional[str], use_lancedb: bool):
+    """List all assets of a specific modality."""
+    console.print(Panel(f"[bold blue]Assets by Modality[/bold blue]\n[bold]Modality:[/bold] {modality}", title="List by Modality"))
+    
+    db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+    assets = db_service.list_assets_by_modality(modality)
+    
+    if not assets:
+        console.print(f"[yellow]No assets found for modality: {modality}[/yellow]")
+        return
+    
+    console.print(f"[green]✓[/green] Found {len(assets)} {modality} assets")
+    
+    table = Table(title=f"{modality.title()} Assets")
+    table.add_column("Asset ID", style="cyan")
+    table.add_column("File Name", style="green")
+    table.add_column("Size", style="yellow")
+    table.add_column("Labels", style="magenta")
+    
+    for asset in assets:
+        label_count = len(asset.labels) if asset.labels else 0
+        table.add_row(asset.asset_id, asset.file_name, asset.file_size, f"{label_count} labels")
+    
+    console.print(table)
+    
+    if output:
+        modality_results = {
+            "modality": modality,
+            "total_assets": len(assets),
+            "assets": [asset.model_dump() for asset in assets]
+        }
+        with open(output, 'w') as f:
+            json.dump(modality_results, f, indent=2)
+        console.print(f"[green]Results saved to: {output}[/green]")
+
+
+@inspect.command()
 @click.option('--asset-id', help='Specific asset ID to inspect')
 @click.option('--output', '-o', type=click.Path(), help='Output file for detailed inspection')
-def embeddings(asset_id: Optional[str], output: Optional[str]):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def embeddings(asset_id: Optional[str], output: Optional[str], use_lancedb: bool):
     """Inspect embedding data and similarity calculations."""
     console.print(Panel("[bold blue]Embedding Inspection[/bold blue]", title="Embeddings"))
     
@@ -1310,7 +1507,8 @@ def embeddings(asset_id: Optional[str], output: Optional[str]):
 @click.option('--include-embeddings', is_flag=True, help='Include full embedding vectors in output')
 @click.option('--include-metadata', is_flag=True, default=True, help='Include metadata in output')
 @click.option('--include-search-terms', is_flag=True, default=True, help='Include search terms in output')
-def export_data(file_path: str, output_dir: str, output_format: str, include_embeddings: bool, include_metadata: bool, include_search_terms: bool):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def export_data(file_path: str, output_dir: str, output_format: str, include_embeddings: bool, include_metadata: bool, include_search_terms: bool, use_lancedb: bool):
     """Export all data (embeddings, search terms, metadata) for a processed file."""
     console.print(Panel(f"[bold blue]Data Export[/bold blue]\n[bold]File:[/bold] {file_path}", title="Export Data"))
     
@@ -1398,7 +1596,7 @@ def export_data(file_path: str, output_dir: str, output_format: str, include_emb
         with open(output_file, 'w') as f:
             yaml.dump(export_data, f, default_flow_style=False)
     
-    console.print(f"✅ Data exported successfully!")
+    console.print("✅ Data exported successfully!")
     console.print(f"📁 Output file: {output_file}")
     console.print(f"📊 Format: {output_format.upper()}")
     console.print(f"📊 Included: metadata={include_metadata}, embeddings={include_embeddings}, search_terms={include_search_terms}")
@@ -1409,7 +1607,8 @@ def export_data(file_path: str, output_dir: str, output_format: str, include_emb
 @click.option('--output-dir', '-o', default='search_output', help='Output directory for search results')
 @click.option('--limit', default=10, help='Number of search results')
 @click.option('--format', 'output_format', default='json', type=click.Choice(['json', 'csv', 'yaml']), help='Output format')
-def search_export(query: str, output_dir: str, limit: int, output_format: str):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def search_export(query: str, output_dir: str, limit: int, output_format: str, use_lancedb: bool):
     """Export search results with embeddings and metadata."""
     console.print(Panel(f"[bold blue]Search Export[/bold blue]\n[bold]Query:[/bold] {query}", title="Search Export"))
     
@@ -1471,7 +1670,7 @@ def search_export(query: str, output_dir: str, limit: int, output_format: str):
         with open(output_file, 'w') as f:
             yaml.dump(export_data, f, default_flow_style=False)
     
-    console.print(f"✅ Search export completed!")
+    console.print("✅ Search export completed!")
     console.print(f"📁 Output file: {output_file}")
     console.print(f"📊 Results: {len(search_results.results)} items")
     console.print(f"📊 Format: {output_format.upper()}")
@@ -1482,7 +1681,8 @@ def search_export(query: str, output_dir: str, limit: int, output_format: str):
 @click.option('--limit', default=5, help='Number of search results')
 @click.option('--model', default='search-english-v1', help='Search model to use')
 @click.option('--output', '-o', type=click.Path(), help='Output file for results')
-def search(query: str, limit: int, model: str, output: Optional[str]):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def search(query: str, limit: int, model: str, output: Optional[str], use_lancedb: bool):
     """Test search functionality with default query."""
     console.print(Panel(f"[bold blue]Search Test[/bold blue]\n[bold]Query:[/bold] {query}", title="Search Test"))
     
@@ -1509,7 +1709,7 @@ def search(query: str, limit: int, model: str, output: Optional[str]):
     console.print(table)
     
     # Display summary
-    console.print(f"\n[bold]Search Summary:[/bold]")
+    console.print("\n[bold]Search Summary:[/bold]")
     console.print(f"📊 Query: {query}")
     console.print(f"📊 Model: {model}")
     console.print(f"📊 Results: {len(search_results.results)}")
@@ -1525,7 +1725,8 @@ def search(query: str, limit: int, model: str, output: Optional[str]):
 @test.command()
 @click.argument('text', default='A family enjoying a picnic in the park on a sunny afternoon. Children are playing while adults are setting up food on a blanket.')
 @click.option('--output', '-o', type=click.Path(), help='Output file for results')
-def metadata(text: str, output: Optional[str]):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def metadata(text: str, output: Optional[str], use_lancedb: bool):
     """Test metadata generation logic with sample text."""
     console.print(Panel(f"[bold blue]Metadata Generation Test[/bold blue]\n[bold]Input Text:[/bold] {text[:100]}...", title="Metadata Test"))
     
@@ -1534,7 +1735,7 @@ def metadata(text: str, output: Optional[str]):
     metadata_output = metadata_service.process_text_description(text)
     
     # Display results
-    console.print(f"\n[bold]Generated Metadata:[/bold]")
+    console.print("\n[bold]Generated Metadata:[/bold]")
     console.print(f"📝 Summary: {metadata_output.summary}")
     console.print(f"🏷️ Keywords: {', '.join(metadata_output.keywords)}")
     console.print(f"📂 Categories: {', '.join(metadata_output.categories)}")
@@ -1542,7 +1743,7 @@ def metadata(text: str, output: Optional[str]):
     console.print(f"🔍 Search Text: {metadata_output.search_text}")
     
     # Display statistics
-    console.print(f"\n[bold]Metadata Statistics:[/bold]")
+    console.print("\n[bold]Metadata Statistics:[/bold]")
     console.print(f"📊 Keywords extracted: {len(metadata_output.keywords)}")
     console.print(f"📊 Categories assigned: {len(metadata_output.categories)}")
     console.print(f"📊 Tags generated: {len(metadata_output.tags)}")
@@ -1560,7 +1761,8 @@ def metadata(text: str, output: Optional[str]):
 @click.option('--search-file', type=click.Path(exists=True), help='Search results file')
 @click.option('--generate-file', type=click.Path(exists=True), help='Generated text file')
 @click.option('--output', '-o', type=click.Path(), help='Output file for results')
-def eval(asset_id: str, embedding_file: Optional[str], search_file: Optional[str], generate_file: Optional[str], output: Optional[str]):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def eval(asset_id: str, embedding_file: Optional[str], search_file: Optional[str], generate_file: Optional[str], output: Optional[str], use_lancedb: bool):
     """Test evaluation logic with sample data."""
     console.print(Panel(f"[bold blue]Evaluation Logic Test[/bold blue]\n[bold]Asset ID:[/bold] {asset_id}", title="Evaluation Test"))
     
@@ -1594,7 +1796,7 @@ def eval(asset_id: str, embedding_file: Optional[str], search_file: Optional[str
     labels = labeler_service.process_asset(asset_id, embedding_data.embedding, search_data.results, generate_data.text)
     
     # Display evaluation results
-    console.print(f"\n[bold]Evaluation Results:[/bold]")
+    console.print("\n[bold]Evaluation Results:[/bold]")
     console.print(f"🏷️ Labels: {', '.join(labels.labels)}")
     console.print(f"📊 Confidence Scores: {[f'{c:.2f}' for c in labels.confidence]}")
     console.print(f"📂 Categories: {', '.join(labels.categories)}")
@@ -1604,14 +1806,14 @@ def eval(asset_id: str, embedding_file: Optional[str], search_file: Optional[str
     label_count = len(labels.labels)
     category_count = len(labels.categories)
     
-    console.print(f"\n[bold]Evaluation Metrics:[/bold]")
+    console.print("\n[bold]Evaluation Metrics:[/bold]")
     console.print(f"📊 Labels generated: {label_count}")
     console.print(f"📊 Categories identified: {category_count}")
     console.print(f"📊 Average confidence: {avg_confidence:.3f}")
     console.print(f"📊 High confidence labels (>0.8): {sum(1 for c in labels.confidence if c > 0.8)}")
     
     # Display input data summary
-    console.print(f"\n[bold]Input Data Summary:[/bold]")
+    console.print("\n[bold]Input Data Summary:[/bold]")
     console.print(f"📊 Embedding dimensions: {embedding_data.dimensions}")
     console.print(f"📊 Search results: {len(search_data.results)}")
     console.print(f"📊 Generated text length: {len(generate_data.text)} characters")
@@ -1637,7 +1839,8 @@ def eval(asset_id: str, embedding_file: Optional[str], search_file: Optional[str
 
 @test.command()
 @click.option('--output-dir', '-o', default='test_results', help='Output directory for all test results')
-def all(output_dir: str):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def all(output_dir: str, use_lancedb: bool):
     """Run all tests and save results."""
     console.print(Panel(f"[bold blue]Running All Tests[/bold blue]\n[bold]Output Directory:[/bold] {output_dir}", title="All Tests"))
     
@@ -1686,9 +1889,100 @@ def all(output_dir: str):
         json.dump(eval_results, f, indent=2)
     console.print("✅ Evaluation logic test completed")
     
+    # Test 4: LanceDB Integration (if enabled)
+    if use_lancedb:
+        console.print("\n[bold]4. Testing LanceDB Integration[/bold]")
+        try:
+            db_service = DatabaseService(".test_lancedb_store", use_lancedb=True)
+            
+            # Create test asset record
+            test_asset = AssetRecord(
+                asset_id="lancedb_test_001",
+                video_id="test_video_001",
+                file_name="test_video.mp4",
+                file_size="15.2MB",
+                format="mp4",
+                modality="video",
+                created_at=datetime.now().isoformat(),
+                metadata=MetadataOutput(
+                    summary="Test video for LanceDB",
+                    keywords=["test", "video", "lancedb"],
+                    categories=["test"],
+                    tags=["#test", "#video"],
+                    search_text="test video lancedb",
+                    video_id="test_video_001"
+                ),
+                labels=["test", "video", "lancedb"]
+            )
+            
+            # Store asset
+            db_service.store_asset(test_asset)
+            
+            # Store vector with temporal info
+            test_vector = VectorRecord(
+                asset_id="lancedb_test_001",
+                video_id="test_video_001",
+                embedding=[0.1, 0.5, -0.3, 0.8] * 384,  # 1536 dimensions
+                model="embed-english-v1",
+                dimensions=1536,
+                modality="video"
+            )
+            
+            temporal_info = TemporalInfo(
+                start_time=0.0,
+                end_time=10.0,
+                scope="video"
+            )
+            
+            db_service.store_vector(test_vector, temporal_info)
+            
+            # Store metadata
+            test_metadata = MetadataOutput(
+                summary="Test video for LanceDB",
+                keywords=["test", "video", "lancedb"],
+                categories=["test"],
+                tags=["#test", "#video"],
+                search_text="test video lancedb",
+                video_id="test_video_001"
+            )
+            
+            db_service.store_metadata("lancedb_test_001", test_metadata)
+            
+            # Test similarity search
+            query_embedding = [0.1, 0.5, -0.3, 0.8] * 384
+            search_results_lancedb = db_service.similarity_search(query_embedding, k=3)
+            
+            # Test text search
+            text_results = db_service.text_search("test", k=3)
+            
+            lancedb_results = {
+                "asset_stored": True,
+                "vector_stored": True,
+                "metadata_stored": True,
+                "similarity_search_results": len(search_results_lancedb),
+                "text_search_results": len(text_results),
+                "stats": db_service.get_store_stats()
+            }
+            
+            with open(output_path / "test_lancedb.json", 'w') as f:
+                json.dump(lancedb_results, f, indent=2)
+            console.print("✅ LanceDB integration test completed")
+            
+        except Exception as e:
+            console.print(f"[red]❌ LanceDB test failed: {e}[/red]")
+            lancedb_results = {"error": str(e)}
+            with open(output_path / "test_lancedb.json", 'w') as f:
+                json.dump(lancedb_results, f, indent=2)
+    else:
+        console.print("\n[bold]4. LanceDB Test Skipped[/bold] (use --use-lancedb to enable)")
+        lancedb_results = {"status": "skipped", "reason": "use --use-lancedb flag to enable"}
+        with open(output_path / "test_lancedb.json", 'w') as f:
+            json.dump(lancedb_results, f, indent=2)
+    
     # Generate test summary
     summary = {
         "test_run": datetime.now().isoformat(),
+        "lancedb_enabled": use_lancedb,
         "tests": {
             "search": {
                 "status": "completed",
@@ -1706,6 +2000,11 @@ def all(output_dir: str):
                 "results_file": "test_eval.json",
                 "labels_count": len(labels.labels),
                 "avg_confidence": sum(labels.confidence) / len(labels.confidence) if labels.confidence else 0
+            },
+            "lancedb": {
+                "status": "completed" if use_lancedb else "skipped",
+                "results_file": "test_lancedb.json",
+                "enabled": use_lancedb
             }
         }
     }
@@ -1713,15 +2012,16 @@ def all(output_dir: str):
     with open(output_path / "test_summary.json", 'w') as f:
         json.dump(summary, f, indent=2)
     
-    console.print(f"\n✅ All tests completed successfully!")
+    console.print("\n✅ All tests completed successfully!")
     console.print(f"📁 Results saved to: {output_path}")
-    console.print(f"📊 Files generated: test_search.json, test_metadata.json, test_eval.json, test_summary.json")
+    console.print("📊 Files generated: test_search.json, test_metadata.json, test_eval.json, test_lancedb.json, test_summary.json")
 
 
 @spec.command()
 @click.argument('asset_path', type=click.Path(exists=True))
 @click.option('--output-dir', default='asset_processing_demo', help='Output directory for results')
-def process_asset(asset_path, output_dir):
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def process_asset(asset_path, output_dir, use_lancedb):
     """Process a specific asset to demonstrate the complete pipeline."""
     console.print(Panel(f"[bold green]Asset Processing Demo[/bold green]\n[bold]Asset:[/bold] {asset_path}", title="Asset Demo"))
     
@@ -1733,7 +2033,7 @@ def process_asset(asset_path, output_dir):
     validator = FileValidator()
     metadata = validator.validate_file(asset_path)
     
-    console.print(f"✅ [green]Asset validated[/green]")
+    console.print("✅ [green]Asset validated[/green]")
     console.print(f"📊 Modality: {metadata.modality}")
     console.print(f"📊 Size: {metadata.size}")
     console.print(f"📊 Format: {metadata.format}")
@@ -1762,7 +2062,7 @@ def process_asset(asset_path, output_dir):
     generate_service = GenerateAPIService()
     generated_text = generate_service.generate_description(video_metadata.video_id)
     
-    console.print(f"✅ [green]Text description generated[/green]")
+    console.print("✅ [green]Text description generated[/green]")
     console.print(f"📝 Description: {generated_text.text[:100]}...")
     
     # Phase 3: Content Processing
@@ -1786,7 +2086,7 @@ def process_asset(asset_path, output_dir):
         video_metadata.video_id
     )
     
-    console.print(f"✅ [green]Metadata generated[/green]")
+    console.print("✅ [green]Metadata generated[/green]")
     console.print(f"📊 Summary: {metadata_output.summary}")
     console.print(f"📊 Keywords: {metadata_output.keywords}")
     
@@ -1825,7 +2125,7 @@ def process_asset(asset_path, output_dir):
         labeler_output.labels
     )
     
-    console.print(f"✅ [green]Search index created[/green]")
+    console.print("✅ [green]Search index created[/green]")
     console.print(f"📊 Text index: {search_index.text_index[:50]}...")
     console.print(f"📊 Vector dimensions: {len(search_index.vector_index)}")
     console.print(f"📊 Label count: {len(search_index.label_index)}")
@@ -1850,6 +2150,251 @@ def process_asset(asset_path, output_dir):
     
     console.print(f"\n📁 Results saved to: {output_path}/asset_processing_results.json")
     console.print(Panel("[bold green]✅ Asset Processing Demo Completed[/bold green]", title="Demo Results"))
+
+
+@test.command()
+def vector_store_demo():
+    """Demonstrate vector store functionality with sample data."""
+    console.print(Panel("[bold blue]Vector Store Demo[/bold blue]", title="Vector Store Demo"))
+    
+    # Create database service
+    db_service = DatabaseService()
+    
+    # Show initial state
+    console.print("\n[bold]Initial Vector Store State:[/bold]")
+    stored_vectors = db_service.get_all_vectors()
+    stored_assets = db_service.get_all_assets()
+    stored_labels = db_service.get_all_labels()
+    
+    console.print(f"📊 Assets: {len(stored_assets)}")
+    console.print(f"📊 Vectors: {len(stored_vectors)}")
+    console.print(f"📊 Labels: {len(stored_labels)}")
+    
+    # Store sample data
+    console.print("\n[bold]Storing Sample Data...[/bold]")
+    
+    # Create sample asset
+    asset_record = AssetRecord(
+        asset_id="demo_asset_001",
+        video_id="video_demo_123",
+        file_name="demo_video.mp4",
+        file_size="15.2MB",
+        duration="2:30",
+        format="MP4",
+        resolution="1920x1080",
+        modality="video",
+        metadata=MetadataOutput(
+            summary="A family enjoying a picnic in the park",
+            keywords=["family", "picnic", "park", "outdoor"],
+            categories=["lifestyle", "family", "outdoor"],
+            tags=["#family", "#picnic", "#outdoor"],
+            search_text="family picnic park outdoor lifestyle",
+            video_id="video_demo_123"
+        ),
+        labels=["family", "outdoor", "picnic", "lifestyle"],
+        created_at=datetime.now().isoformat(),
+        status="processed"
+    )
+    
+    db_service.store_asset(asset_record)
+    console.print("✅ Asset stored")
+    
+    # Create sample vector
+    vector_record = VectorRecord(
+        asset_id="demo_asset_001",
+        video_id="video_demo_123",
+        embedding=[0.1, 0.5, -0.3, 0.8, -0.2, 0.6] * 256,  # 1536 dimensions
+        model="embed-english-v1",
+        dimensions=1536,
+        modality="video"
+    )
+    
+    db_service.store_vector(vector_record)
+    console.print("✅ Vector stored")
+    
+    # Create sample labels
+    label_record = LabelRecord(
+        asset_id="demo_asset_001",
+        video_id="video_demo_123",
+        labels=["family", "outdoor", "picnic", "lifestyle"],
+        confidence=[0.95, 0.87, 0.92, 0.78],
+        categories=["lifestyle", "family", "outdoor"]
+    )
+    
+    db_service.store_labels(label_record)
+    console.print("✅ Labels stored")
+    
+    # Show updated state
+    console.print("\n[bold]Updated Vector Store State:[/bold]")
+    stored_vectors = db_service.get_all_vectors()
+    stored_assets = db_service.get_all_assets()
+    stored_labels = db_service.get_all_labels()
+    
+    console.print(f"📊 Assets: {len(stored_assets)}")
+    console.print(f"📊 Vectors: {len(stored_vectors)}")
+    console.print(f"📊 Labels: {len(stored_labels)}")
+    
+    # Display stored data
+    table = Table(title="Stored Data")
+    table.add_column("Asset ID", style="cyan")
+    table.add_column("File Name", style="green")
+    table.add_column("Modality", style="yellow")
+    table.add_column("Vector Dimensions", style="magenta")
+    table.add_column("Labels", style="red")
+    
+    for asset_id, asset in stored_assets.items():
+        vector = stored_vectors.get(asset_id)
+        labels = stored_labels.get(asset_id)
+        label_count = len(labels.labels) if labels else 0
+        
+        table.add_row(
+            asset_id,
+            asset.file_name,
+            asset.modality,
+            str(vector.dimensions) if vector else "N/A",
+            f"{label_count} labels" if labels else "N/A"
+        )
+    
+    console.print(table)
+    
+    # Show statistics
+    stats = db_service.get_store_stats()
+    console.print("\n[bold]Store Statistics:[/bold]")
+    console.print(f"📊 Total assets: {stats['total_assets']}")
+    console.print(f"📊 Total vectors: {stats['total_vectors']}")
+    console.print(f"📊 Total labels: {stats['total_labels']}")
+    console.print(f"📊 Modalities: {stats['modalities']}")
+    console.print(f"📊 Models: {stats['models']}")
+    
+    console.print("\n[bold green]✅ Vector Store Demo Completed[/bold green]")
+
+
+@main.group()
+def lancedb():
+    """LanceDB vector database operations."""
+    pass
+
+
+@lancedb.command()
+@click.option('--storage-dir', default='.lancedb_store', help='LanceDB storage directory')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend instead of file-based storage')
+def init(storage_dir: str, use_lancedb: bool):
+    """Initialize LanceDB vector database."""
+    console.print(Panel("[bold blue]LanceDB Vector Database Initialization[/bold blue]", title="Setup"))
+    
+    try:
+        db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+        stats = db_service.get_store_stats()
+        
+        console.print("[green]✓[/green] LanceDB initialized successfully")
+        console.print(f"  • Storage location: {stats['storage_location']}")
+        console.print(f"  • Total assets: {stats['total_assets']}")
+        console.print(f"  • Modalities: {', '.join(stats['modalities'])}")
+        
+    except ImportError as e:
+        console.print(f"[red]✗[/red] LanceDB not available: {e}")
+        console.print("Install LanceDB with: pip install lancedb")
+    except Exception as e:
+        console.print(f"[red]✗[/red] Error initializing LanceDB: {e}")
+
+
+@lancedb.command()
+@click.argument('query_embedding', nargs=-1, type=float)
+@click.option('--k', default=5, help='Number of results to return')
+@click.option('--storage-dir', default='.lancedb_store', help='LanceDB storage directory')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def similarity_search(query_embedding, k: int, storage_dir: str, use_lancedb: bool):
+    """Perform similarity search using LanceDB."""
+    if not query_embedding:
+        console.print("[red]Error: Please provide embedding values[/red]")
+        return
+    
+    console.print(Panel(f"[bold blue]LanceDB Similarity Search[/bold blue]\nQuery embedding: {len(query_embedding)} dimensions", title="Search"))
+    
+    try:
+        db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+        results = db_service.similarity_search(list(query_embedding), k)
+        
+        if results:
+            table = Table(title="Similarity Search Results")
+            table.add_column("Asset ID", style="cyan")
+            table.add_column("File Name", style="green")
+            table.add_column("Score", style="yellow")
+            table.add_column("Modality", style="blue")
+            
+            for result in results:
+                table.add_row(
+                    result.get('asset_id', 'N/A'),
+                    result.get('file_name', 'N/A'),
+                    f"{result.get('_distance', 0):.4f}",
+                    result.get('modality', 'N/A')
+                )
+            
+            console.print(table)
+        else:
+            console.print("[yellow]No results found[/yellow]")
+            
+    except Exception as e:
+        console.print(f"[red]Error performing similarity search: {e}[/red]")
+
+
+@lancedb.command()
+@click.argument('query_text')
+@click.option('--k', default=5, help='Number of results to return')
+@click.option('--storage-dir', default='.lancedb_store', help='LanceDB storage directory')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def text_search(query_text: str, k: int, storage_dir: str, use_lancedb: bool):
+    """Perform text-based search using LanceDB."""
+    console.print(Panel(f"[bold blue]LanceDB Text Search[/bold blue]\nQuery: {query_text}", title="Search"))
+    
+    try:
+        db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+        results = db_service.text_search(query_text, k)
+        
+        if results:
+            table = Table(title="Text Search Results")
+            table.add_column("Asset ID", style="cyan")
+            table.add_column("File Name", style="green")
+            table.add_column("Summary", style="blue")
+            table.add_column("Keywords", style="yellow")
+            
+            for result in results:
+                keywords = ', '.join(result.get('keywords', [])[:3])
+                table.add_row(
+                    result.get('asset_id', 'N/A'),
+                    result.get('file_name', 'N/A'),
+                    result.get('summary', 'N/A')[:50] + '...',
+                    keywords
+                )
+            
+            console.print(table)
+        else:
+            console.print("[yellow]No results found[/yellow]")
+            
+    except Exception as e:
+        console.print(f"[red]Error performing text search: {e}[/red]")
+
+
+@lancedb.command()
+@click.option('--storage-dir', default='.lancedb_store', help='LanceDB storage directory')
+@click.option('--use-lancedb', is_flag=True, help='Use LanceDB backend')
+def stats(storage_dir: str, use_lancedb: bool):
+    """Show LanceDB statistics."""
+    console.print(Panel("[bold blue]LanceDB Statistics[/bold blue]", title="Stats"))
+    
+    try:
+        db_service = DatabaseService(storage_dir, use_lancedb=use_lancedb)
+        stats = db_service.get_store_stats()
+        
+        console.print("[green]✓[/green] Database Statistics:")
+        console.print(f"  • Total assets: {stats['total_assets']}")
+        console.print(f"  • Modalities: {', '.join(stats['modalities'])}")
+        console.print(f"  • Models: {', '.join(stats['models'])}")
+        console.print(f"  • Storage location: {stats['storage_location']}")
+        console.print(f"  • Last updated: {stats['last_updated']}")
+        
+    except Exception as e:
+        console.print(f"[red]Error getting statistics: {e}[/red]")
 
 
 if __name__ == '__main__':

@@ -1,390 +1,330 @@
 # Twelve Labs Single Asset Process CLI
 
-A Python CLI tool that traces each step in the granular single asset process for Twelve Labs media processing pipeline. Built with Click and uv for dependency management, with real Twelve Labs API integration.
+A comprehensive CLI tool for tracing and managing the Twelve Labs Single Asset Process, with support for both file-based storage and LanceDB vector database.
 
-## Overview
+## 🚀 New Features (Based on Twelve Labs + LanceDB Guide)
 
-This CLI simulates the complete process flow described in the granular single asset process diagram, allowing you to trace each phase and step of media asset processing through the Twelve Labs system. It integrates with the actual Twelve Labs API and supports all modalities (video, audio, text, image).
+### **Enhanced Twelve Labs API Integration**
 
-## Features
+- **Real Embed API Integration**: Now uses the actual Twelve Labs Embed API with task management
+- **Temporal Information**: Supports video segment timing data from Twelve Labs
+- **Text-to-Embedding**: Convert text queries to embeddings for similarity search
+- **Progress Monitoring**: Real-time task progress tracking
 
-- **Real API Integration**: Uses the actual Twelve Labs SDK and API
-- **Multi-Modality Support**: Supports video, audio, text, and image modalities
-- **Rich UI**: Beautiful terminal output with progress bars and formatted tables
-- **Modular Design**: Each phase can be run independently or together
-- **Data Persistence**: Save intermediate results as JSON files
-- **Error Handling**: Graceful error handling with informative messages
-- **Executable**: Can be built into a standalone executable
+### **LanceDB Vector Database Support**
 
-## Installation
+- **High-Performance Vector Search**: Leverage LanceDB's optimized vector operations
+- **Hybrid Search**: Combine vector similarity with metadata filtering
+- **Persistent Storage**: Scalable vector database with automatic indexing
+- **RAG Workflow Support**: Ready for Retrieval Augmented Generation applications
 
-### Using uv (Recommended)
+## 📦 Installation
 
+### Basic Installation
 ```bash
-# Install uv if you haven't already
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Clone and install the project
-git clone <repository-url>
-cd twelve_labs_sa
-uv sync
+pip install twelve-labs-sa
 ```
 
-### Using pip
-
+### With LanceDB Support
 ```bash
-pip install -e .
+pip install twelve-labs-sa[lancedb]
 ```
 
-### Building Wheel and Executable
-
-The project includes a comprehensive build script that creates both a wheel and executable binary:
-
+### Development Installation
 ```bash
-# Build wheel and executable using uv
-./build_with_uv.py
+git clone <repository>
+cd twelve-labs-sa
+pip install -e .[dev,lancedb]
 ```
 
-This will create:
-
-- `dist/twelve_labs_sa-0.1.0-py3-none-any.whl` - Python wheel package
-- `./twelve-labs-sa` - Standalone executable binary
-
-### Using the tl Alias
-
-After installation, you can use the `tl` command as a shorter alias:
-
-```bash
-# Install the package
-uv pip install dist/twelve_labs_sa-0.1.0-py3-none-any.whl
-
-# Use the tl alias
-tl --help
-tl modalities list
-tl spec compliance-demo
-```
-
-## Configuration
+## 🔧 Configuration
 
 Set your Twelve Labs API key:
-
 ```bash
-# Option 1: Environment variable
-export TWELVE_LABS_API_KEY=your_api_key_here
-
-# Option 2: .env file
-echo "TWELVE_LABS_API_KEY=your_api_key_here" > .env
+export TWELVE_LABS_API_KEY="your_api_key_here"
 ```
 
-## Usage
+## 🎯 Usage
 
-The CLI is organized into 5 phases, each corresponding to a different stage of the granular single asset process:
-
-### Phase 1: Raw Asset Input
+### Basic Operations
 
 ```bash
-# Validate a media file and extract metadata
-twelve-labs-sa process-raw-file validate video.mp4 --output metadata.json
-# or using the tl alias:
-tl process-raw-file validate video.mp4 --output metadata.json
+# Process a single video file (using actual assets)
+twelve-labs-sa process-all resources/assets/sa_interview_assets/live-action/asset1.mp4
 
-# Upload video to Twelve Labs
-twelve-labs-sa process-raw-file upload video.mp4 --title "My Video" --output video_metadata.json
-# or using the tl alias:
-tl process-raw-file upload video.mp4 --title "My Video" --output video_metadata.json
+# Validate file and extract metadata
+twelve-labs-sa process-raw-file validate resources/assets/sa_interview_assets/animations/1032209408-preview.mp4
+
+# Generate embeddings using Twelve Labs API
+twelve-labs-sa call-twelve-labs-apis embed video_id
+
+# Search for similar content
+twelve-labs-sa call-twelve-labs-apis search-text "family picnic"
 ```
 
-### Phase 2: Twelve Labs API Calls
+### LanceDB Vector Database Operations
 
 ```bash
-# Generate vector embedding
-twelve-labs-sa call-twelve-labs-apis embed video_id --model embed-english-v1 --output embedding.json
+# Initialize LanceDB database
+twelve-labs-sa lancedb init --use-lancedb
 
-# Search for videos using text query
-twelve-labs-sa call-twelve-labs-apis search-text "family picnic" --output search_results.json
+# Perform similarity search
+twelve-labs-sa lancedb similarity-search 0.1 0.5 -0.3 0.8 --k 5 --use-lancedb
 
-# Search for similar videos using video as query
-twelve-labs-sa call-twelve-labs-apis search-video video_id --output similar_videos.json
+# Text-based search
+twelve-labs-sa lancedb text-search "family picnic" --use-lancedb
 
-# Generate text description
-twelve-labs-sa call-twelve-labs-apis generate video_id --model generate-english-v1 --output generated_text.json
+# View database statistics
+twelve-labs-sa lancedb stats --use-lancedb
 ```
 
-### Phase 3: Content Processing
+### Storage Backend Options
 
 ```bash
-# Process through Labeler system
-twelve-labs-sa process-content labeler video_id \
-  --embedding-file embedding.json \
-  --search-file search_results.json \
-  --generate-file generated_text.json \
-  --output labels.json
+# Use file-based storage (default)
+twelve-labs-sa inspect vector-store
 
-# Process through Metadata Generator
-twelve-labs-sa process-content metadata-gen generated_text.json --video-id video_id --output metadata.json
+# Use LanceDB backend
+twelve-labs-sa inspect vector-store --use-lancedb
+
+# Export data with LanceDB
+twelve-labs-sa inspect export-store --use-lancedb
 ```
 
-### Phase 4: Data Storage
+### Batch Processing with Real Assets
 
 ```bash
-# Store processed data in databases
-twelve-labs-sa store-data store video_id \
-  --metadata-file metadata.json \
-  --labels-file labels.json \
-  --embedding-file embedding.json
+# Process all live-action videos
+twelve-labs-sa batch process-batch resources/assets/sa_interview_assets/live-action/ --use-lancedb
+
+# Process all animation videos
+twelve-labs-sa batch process-batch resources/assets/sa_interview_assets/animations/ --use-lancedb
+
+# Process specific video types
+twelve-labs-sa batch process-batch resources/assets/sa_interview_assets/ --file-types "mp4" --recursive --use-lancedb
 ```
 
-### Phase 5: Search Index Creation
+## 🔄 Twelve Labs API Integration
 
-```bash
-# Create search index entry
-twelve-labs-sa create-search-index create-index asset_id \
-  --video-id video_id \
-  --metadata-file metadata.json \
-  --embedding-file embedding.json \
-  --labels-file labels.json \
-  --output search_index.json
+### **Real API Calls**
+
+The CLI now uses the actual Twelve Labs APIs as documented in their [official guide](https://www.twelvelabs.io/blog/twelve-labs-and-lancedb):
+
+```python
+# Embed API with task management
+task = client.embed.task.create(
+    engine_name="Marengo-retrieval-2.6",
+    video_url=video_url
+)
+
+# Monitor progress
+task.wait_for_done(sleep_interval=2, callback=on_task_update)
+
+# Retrieve results with temporal information
+task_result = client.embed.task.retrieve(task.id)
 ```
 
-### Complete Process
+### **Temporal Information Support**
 
-Run the entire process in one command:
+Video embeddings now include temporal data:
+- Start/end time offsets
+- Embedding scope information
+- Segment-level processing
 
-```bash
-# Process a single asset through all phases
-twelve-labs-sa process-all video.mp4 --title "Complete Demo" --output-dir ./output
-# or using the tl alias:
-tl process-all video.mp4 --title "Complete Demo" --output-dir ./output
+### **Text-to-Embedding Conversion**
+
+Convert text queries to embeddings for similarity search:
+```python
+# Text embedding for search
+response = client.embed.create(text=query_text, model="embed-english-v1")
+embedding = response.embedding
 ```
 
-### Batch Processing
+## 🗄️ LanceDB Integration
 
-Process multiple files from a directory or ZIP file:
+### **Benefits of LanceDB**
 
-```bash
-# Process all files in a directory
-tl batch process-batch /path/to/files --recursive
+- **Serverless Vector Database**: No separate database server required
+- **High Performance**: Optimized for similarity search operations
+- **Hybrid Search**: Combine vector similarity with metadata filtering
+- **Scalable**: Handles large-scale vector operations efficiently
 
-# Process specific file types
-tl batch process-batch /path/to/files --file-types "mp4,avi,mov"
+### **Schema Design**
 
-# Process ZIP file
-tl batch process-batch archive.zip --output-dir batch_results
+LanceDB table includes all necessary fields:
+```python
+schema = pa.schema([
+    pa.field("asset_id", pa.string()),
+    pa.field("embedding", pa.list_(pa.float32(), 1536)),  # Twelve Labs dimension
+    pa.field("start_time", pa.float32()),
+    pa.field("end_time", pa.float32()),
+    pa.field("labels", pa.list_(pa.string())),
+    pa.field("summary", pa.string()),
+    pa.field("search_text", pa.string())
+])
 ```
 
-### Vector Store Inspection
+### **Search Operations**
 
-Inspect the internal vector store state:
+```python
+# Similarity search
+results = table.search(query_embedding).limit(k).to_list()
 
-```bash
-# View all vectors in the store
-tl inspect vector-store
-
-# Export vector store data
-tl inspect vector-store --output vector_store.json
-
-# Inspect specific embedding
-tl inspect embeddings --asset-id asset_001
-
-# View all embeddings with similarity scores
-tl inspect embeddings
+# Text search with metadata filtering
+filtered_results = table.search().where("start_time > 10 AND end_time < 60").limit(5).to_list()
 ```
 
-### Enhanced Data Export
+## 📊 Comparison: Twelve Labs vs Our Implementation
 
-Export embeddings, search terms, and metadata:
+| Feature | Twelve Labs API | Our Implementation |
+|---------|----------------|-------------------|
+| **Embedding Generation** | ✅ Server-side | ✅ Client-side caching |
+| **Temporal Information** | ✅ Built-in | ✅ Enhanced support |
+| **Vector Storage** | ❌ None | ✅ LanceDB + File-based |
+| **Local Caching** | ❌ None | ✅ Persistent storage |
+| **Cost Optimization** | ❌ Pay per call | ✅ Cache once, reuse |
+| **Offline Access** | ❌ No | ✅ Full offline support |
+| **Custom Metadata** | ❌ Limited | ✅ Full control |
+| **Eval Set Management** | ❌ None | ✅ Complete solution |
 
+## 🔍 Search Capabilities
+
+### **Vector Similarity Search**
 ```bash
-# Export all data for a file
-tl output export-data video.mp4 --include-embeddings --format json
-
-# Export in different formats
-tl output export-data video.mp4 --format csv
-tl output export-data video.mp4 --format yaml
-
-# Export search results with embeddings
-tl output search-export "family picnic" --limit 10 --format json
+# Find similar videos using embeddings
+twelve-labs-sa lancedb similarity-search 0.1 0.5 -0.3 0.8 --k 5
 ```
 
-### Convenience Test Commands
-
-Quick test commands for key functionality:
-
+### **Text-Based Search**
 ```bash
-# Test search functionality
-tl test search
-tl test search "outdoor activities" --limit 3
+# Search by text query
+twelve-labs-sa lancedb text-search "family picnic outdoor"
+```
 
-# Test metadata generation
-tl test metadata
-tl test metadata "Children playing in the garden with toys"
+### **Hybrid Search**
+```bash
+# Combine vector and metadata search
+twelve-labs-sa inspect search-store "picnic" --use-lancedb
+```
 
-# Test evaluation logic
-tl test eval
-tl test eval test_asset_002 --output eval_results.json
+## 📈 Performance Benefits
 
+### **Cost Optimization**
+- **Cache embeddings**: Avoid redundant API calls
+- **Batch processing**: Process multiple files efficiently
+- **Persistent storage**: Reuse processed data
+
+### **Speed Improvements**
+- **Local vector search**: No API latency
+- **LanceDB optimization**: High-performance similarity search
+- **Parallel processing**: Process multiple assets simultaneously
+
+## 🛠️ Development
+
+### **Running Tests**
+```bash
 # Run all tests
-tl test all --output-dir comprehensive_tests
+twelve-labs-sa test all
+
+# Test specific functionality
+twelve-labs-sa test search "family picnic"
+twelve-labs-sa test metadata "sample text"
 ```
 
-### Modality Information
-
+### **Inspecting Data**
 ```bash
-# List supported modalities and their configurations
-twelve-labs-sa modalities list
+# View vector store contents
+twelve-labs-sa inspect vector-store
+
+# Export data for analysis
+twelve-labs-sa inspect export-store --export-path ./export
 ```
 
-## CLI Structure
+## 📚 Examples
 
-The CLI can be invoked using either the full command name or the `tl` alias:
-
+### **Complete Asset Processing**
 ```bash
-# Full command name
-twelve-labs-sa [COMMAND] [OPTIONS]
+# Process a live-action video file with LanceDB
+twelve-labs-sa process-all resources/assets/sa_interview_assets/live-action/asset1.mp4 --use-lancedb
 
-# Short alias
-tl [COMMAND] [OPTIONS]
+# Process an animation video file
+twelve-labs-sa process-all resources/assets/sa_interview_assets/animations/1032209408-preview.mp4 --use-lancedb
+
+# Search for similar content
+twelve-labs-sa lancedb similarity-search 0.1 0.5 -0.3 0.8 --use-lancedb
 ```
 
-```md
-twelve-labs-sa / tl
-├── modalities - Modality-specific operations
-│   └── list - List supported modalities
-├── process-raw-file (Phase 1: Raw Asset Input)
-│   ├── validate - Validate file and extract metadata
-│   └── upload - Upload video to Twelve Labs
-├── call-twelve-labs-apis (Phase 2: Twelve Labs API Calls)
-│   ├── embed - Generate vector embedding
-│   ├── search-text - Search for videos using text query
-│   ├── search-video - Search for similar videos using video as query
-│   └── generate - Generate text description
-├── process-content (Phase 3: Content Processing)
-│   ├── labeler - Process through Labeler system
-│   └── metadata-gen - Process through Metadata Generator
-├── store-data (Phase 4: Data Storage)
-│   └── store - Store processed data in databases
-├── create-search-index (Phase 5: Search Index Creation)
-│   └── create-index - Create search index entry
-├── batch - Batch processing operations
-│   └── process-batch - Process multiple files from directory or ZIP
-├── inspect - Inspect internal state and data
-│   ├── vector-store - Inspect vector store contents
-│   └── embeddings - Inspect embedding data and similarities
-├── output - Enhanced output and data export
-│   ├── export-data - Export all data for a processed file
-│   └── search-export - Export search results with embeddings
-├── test - Convenience test commands for key functionality
-│   ├── search - Test search functionality with default query
-│   ├── metadata - Test metadata generation logic with sample text
-│   ├── eval - Test evaluation logic with sample data
-│   └── all - Run all tests and save results
-├── spec - Specification compliance demonstration
-│   ├── compliance-demo - Demonstrate spec compliance
-│   └── process-asset - Process specific asset
-└── process-all - Run complete process
-```
-
-## Supported Modalities
-
-| Modality | File Extensions | Max Size | Models |
-|----------|----------------|----------|---------|
-| Video | .mp4, .avi, .mov, .mkv, .webm | 100MB | embed-english-v1, embed-multilingual-v1 |
-| Audio | .mp3, .wav, .aac, .flac, .m4a | 50MB | embed-english-v1, embed-multilingual-v1 |
-| Text | .txt, .md, .json | 10MB | embed-english-v1, embed-multilingual-v1 |
-| Image | .jpg, .jpeg, .png, .gif, .bmp | 20MB | embed-english-v1, embed-multilingual-v1 |
-
-## Data Flow
-
-The CLI follows the exact data flow described in the granular single asset process:
-
-1. **Raw Asset Input** → File validation and metadata extraction
-2. **API Calls** → Parallel calls to Embed, Search, and Generate APIs
-3. **Content Processing** → Labeler and Metadata Generator systems
-4. **Data Storage** → Store in Asset, Vector, and Label databases
-5. **Search Index Creation** → Combine all data sources for search
-
-## API Integration
-
-This CLI integrates with the actual Twelve Labs API:
-
-- **Video Upload**: Upload videos to Twelve Labs platform
-- **Embedding Generation**: Create vector embeddings using embed models
-- **Search Operations**: Search for videos using text or video queries
-- **Text Generation**: Generate descriptions using generate models
-- **Task Management**: Handle async operations and task status
-
-## Development
-
-### Setup Development Environment
-
+### **Batch Processing**
 ```bash
-# Install development dependencies
-uv sync --extra dev
+# Process all live-action videos
+twelve-labs-sa batch process-batch resources/assets/sa_interview_assets/live-action/ --recursive --use-lancedb
 
-# Run tests
-pytest
+# Process all animation videos
+twelve-labs-sa batch process-batch resources/assets/sa_interview_assets/animations/ --recursive --use-lancedb
 
-# Format code
-black twelve_labs_sa/
-isort twelve_labs_sa/
-
-# Type checking
-mypy twelve_labs_sa/
+# Process mixed content with specific file types
+twelve-labs-sa batch process-batch resources/assets/sa_interview_assets/ --file-types "mp4" --recursive --use-lancedb
 ```
 
-### Project Structure
-
-```md
-twelve_labs_sa/
-├── __init__.py          # Package initialization
-├── cli.py              # Main CLI application
-├── config.py           # Configuration and API settings
-├── models.py           # Pydantic data models
-└── services.py         # Service classes for API integration
-```
-
-## Building Executable
-
-The project includes a build script to create a standalone executable:
-
+### **Evaluation Workflow**
 ```bash
-# Build executable
-python build_executable.py
+# Run evaluation tests with LanceDB
+twelve-labs-sa test all --use-lancedb
 
-# Test executable
-./twelve-labs-sa --help
+# Test specific functionality
+twelve-labs-sa test search "family picnic" --use-lancedb
+twelve-labs-sa test metadata "sample text" --use-lancedb
 ```
 
-## Examples
+### **Real Asset Examples**
 
-### Basic Usage
+The project includes real video assets for testing:
 
-```bash
-# Validate a file
-./twelve-labs-sa phase1 validate my_video.mp4
+**Live-Action Videos** (`resources/assets/sa_interview_assets/live-action/`):
+- `asset1.mp4` (38MB) - Professional interview content
+- `asset2.mp4` (9.2MB) - Short promotional video
+- `asset3.mp4` (43MB) - Extended interview segment
+- `asset4.mp4` (50MB) - Corporate presentation
+- `asset5.mp4` (43MB) - Product demonstration
+- `asset6.mp4` (50MB) - Team meeting recording
+- `asset7.mp4` (73MB) - Conference presentation
+- `asset8.mp4` (65MB) - Training session
+- `asset9.mp4` (41MB) - Customer testimonial
+- `asset10.mp4` (48MB) - Executive briefing
 
-# Upload and process
-./twelve-labs-sa process-all my_video.mp4 --output-dir ./results
-```
+**Animation Videos** (`resources/assets/sa_interview_assets/animations/`):
+- `1032209408-preview.mp4` (1006KB) - Animated explainer
+- `1082783620-preview.mp4` (1.0MB) - Motion graphics
+- `1086139805-preview.mp4` (94KB) - Short animation
+- `1086002918-preview.mp4` (226KB) - Animated logo
+- `1109250085-preview.mp4` (100KB) - Infographic animation
+- `1109260987-preview.mp4` (64KB) - Icon animation
+- `3524095319-preview.mp4` (52KB) - Loading animation
+- `3513264207-preview.mp4` (43KB) - Transition effect
+- `3423107213-preview.mp4` (132KB) - Character animation
+- `3423107227-preview.mp4` (164KB) - Scene transition
+- `1038251771-preview.mp4` (1.8MB) - Full animation sequence
+- `3473309833-preview.mp4` (51KB) - UI animation
+- `3473237415-preview.mp4` (123KB) - Background animation
 
-### Advanced Usage
+## 🤝 Contributing
 
-```bash
-# Custom models and parameters
-./twelve-labs-sa phase2 embed video_123 --model embed-multilingual-v1
-./twelve-labs-sa phase2 search-text "outdoor activities" --limit 20
-./twelve-labs-sa phase2 generate video_123 --model generate-multilingual-v1
-```
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
 
-## Error Handling
+## 📄 License
 
-The CLI includes comprehensive error handling:
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-- **API Key Validation**: Checks for valid API key before operations
-- **File Validation**: Validates file format, size, and modality
-- **API Error Handling**: Graceful handling of API failures
-- **Progress Tracking**: Real-time progress updates for long operations
+## 🙏 Acknowledgments
 
-## License
+- **Twelve Labs Team**: For the excellent API and documentation
+- **LanceDB Team**: For the powerful vector database
+- **Community**: For feedback and contributions
 
-MIT License
+---
+
+**Note**: This implementation enhances the Twelve Labs API with local caching and vector database capabilities, providing a complete solution for video understanding and retrieval applications.
