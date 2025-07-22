@@ -25,6 +25,12 @@ help:
 	@echo "  commands       - Show all available commands"
 	@echo "  help           - Show this help message"
 	@echo ""
+	@echo "Demo and Testing Commands:"
+	@echo "  test-demo-asset    - Test with existing demo asset (has labels)"
+	@echo "  test-real-asset    - Test with real asset IDs from populated data"
+	@echo "  populate-demo-store - Populate demo store with real assets"
+	@echo "  run-demo           - Run demo script showing working functionality"
+	@echo ""
 	@echo "Examples:"
 	@echo "  make lint ARGS='--fix'     - Run linting with auto-fix"
 	@echo "  make lint ARGS='--select E,W' - Run linting with specific rules"
@@ -75,7 +81,10 @@ test-metadata:
 # Test evaluation logic
 test-eval:
 	@echo "📊 Testing evaluation logic..."
-	@uv run python -m twelve_labs_sa.cli test eval
+	@uv run twelve-labs-sa test eval test_asset_001 \
+		--embedding-file demo_vector_store_data/demo_asset_001_embedding.json \
+		--search-file demo_vector_store_data/demo_asset_001_search.json \
+		--generate-file demo_vector_store_data/demo_asset_001_generate.json
 
 # Install package in development mode
 install:
@@ -175,3 +184,25 @@ commands:
 	@echo "  make lint ARGS='--select E,W'    - Check specific rule categories"
 	@echo "  make lint ARGS='--ignore E501'   - Ignore specific rules"
 	@echo "  make lint ARGS='--output-format=json' - JSON output format" 
+
+# Test with existing demo asset (has labels)
+test-demo-asset:
+	@uv run twelve-labs-sa test eval demo_asset_001 \
+		--embedding-file demo_vector_store_data/demo_asset_001_embedding.json \
+		--search-file demo_vector_store_data/demo_asset_001_search.json \
+		--generate-file demo_vector_store_data/demo_asset_001_generate.json
+
+# Test with real asset IDs from populated data
+test-real-asset:
+	@uv run twelve-labs-sa test eval live_action_asset1_67da7954 \
+		--embedding-file demo_vector_store_data/live_action_asset1_67da7954_embedding.json \
+		--search-file demo_vector_store_data/live_action_asset1_67da7954_search.json \
+		--generate-file demo_vector_store_data/live_action_asset1_67da7954_generate.json
+
+# Populate demo store
+populate-demo-store:
+	@uv run python populate_demo_store.py
+
+# Run demo
+run-demo:
+	@uv run python demo_test_eval.py

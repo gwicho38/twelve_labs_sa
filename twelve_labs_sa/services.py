@@ -374,21 +374,40 @@ class LabelerService:
     
     def _generate_labels(self, keywords: List[str]) -> List[str]:
         """Generate labels from keywords."""
-        # Map keywords to common labels
+        # Map keywords to common labels with more flexible matching
         label_mapping = {
-            "family": ["family", "children", "kids", "parents"],
-            "outdoor": ["outdoor", "park", "nature", "outside"],
-            "food": ["food", "picnic", "eating", "meal"],
-            "lifestyle": ["lifestyle", "leisure", "relaxation", "enjoyment"],
-            "activity": ["activity", "playing", "fun", "entertainment"]
+            "family": ["family", "children", "kids", "parents", "people", "group"],
+            "outdoor": ["outdoor", "park", "nature", "outside", "environment", "scene"],
+            "food": ["food", "picnic", "eating", "meal", "dining", "cuisine"],
+            "lifestyle": ["lifestyle", "leisure", "relaxation", "enjoyment", "living", "daily"],
+            "activity": ["activity", "playing", "fun", "entertainment", "action", "movement"],
+            "professional": ["professional", "business", "work", "corporate", "office", "presentation"],
+            "content": ["content", "media", "video", "production", "creative", "visual"],
+            "technology": ["technology", "digital", "modern", "tech", "innovation", "advanced"],
+            "education": ["education", "learning", "teaching", "training", "instruction", "knowledge"],
+            "entertainment": ["entertainment", "fun", "enjoyment", "amusement", "recreation", "leisure"]
         }
         
         labels = []
         for keyword in keywords:
             for label, related_words in label_mapping.items():
-                if keyword in related_words or any(word in keyword for word in related_words):
+                # More flexible matching - check if keyword contains any related word
+                if (keyword in related_words or 
+                    any(word in keyword for word in related_words) or
+                    any(word in keyword.lower() for word in related_words)):
                     if label not in labels:
                         labels.append(label)
+        
+        # If no labels found, add some default labels based on content type
+        if not labels:
+            if any(word in " ".join(keywords).lower() for word in ["video", "content", "media"]):
+                labels.append("content")
+            if any(word in " ".join(keywords).lower() for word in ["professional", "business", "work"]):
+                labels.append("professional")
+            if any(word in " ".join(keywords).lower() for word in ["live-action", "action", "real"]):
+                labels.append("activity")
+            if any(word in " ".join(keywords).lower() for word in ["visual", "clear", "presentation"]):
+                labels.append("content")
         
         return labels[:5]  # Limit to 5 labels
     
