@@ -4,8 +4,6 @@ Build executable using uv and shiv.
 """
 
 import subprocess
-import sys
-from pathlib import Path
 
 
 def main():

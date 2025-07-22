@@ -12,14 +12,12 @@ This script shows how the CLI meets the following spec requirements:
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 from typing import List, Dict, Any
 import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 console = Console()
 
@@ -118,7 +116,7 @@ class SpecComplianceTester:
         for file in test_files:
             result = self.run_cli_command(["modalities", "list"])
             if result["success"]:
-                console.print(f"✅ [green]Success:[/green] Modality detection working")
+                console.print("✅ [green]Success:[/green] Modality detection working")
                 break
     
     def test_requirement_3_cosine_similarity(self):
@@ -128,7 +126,7 @@ class SpecComplianceTester:
         # Test embedding generation (creates vectors for cosine similarity)
         test_video = self.live_action_dir / "asset1.mp4"
         if test_video.exists():
-            console.print(f"\n[cyan]Testing embedding generation for cosine similarity:[/cyan]")
+            console.print("\n[cyan]Testing embedding generation for cosine similarity:[/cyan]")
             
             # Generate embedding
             result = self.run_cli_command([
@@ -144,7 +142,7 @@ class SpecComplianceTester:
                     with open(f"{self.output_dir}/embedding_for_cosine.json") as f:
                         embedding_data = json.load(f)
                     
-                    console.print(f"📊 [cyan]Embedding Details:[/cyan]")
+                    console.print("📊 [cyan]Embedding Details:[/cyan]")
                     console.print(f"   Dimensions: {embedding_data.get('dimensions', 'N/A')}")
                     console.print(f"   Model: {embedding_data.get('model', 'N/A')}")
                     console.print(f"   Vector Preview: {embedding_data.get('embedding', [])[:5]}...")
@@ -152,10 +150,10 @@ class SpecComplianceTester:
                 except Exception as e:
                     console.print(f"⚠️ [yellow]Warning:[/yellow] Could not load embedding data: {e}")
             else:
-                console.print(f"❌ [red]Failed:[/red] Embedding generation")
+                console.print("❌ [red]Failed:[/red] Embedding generation")
         
         # Test search with similarity scores
-        console.print(f"\n[cyan]Testing search with similarity scores:[/cyan]")
+        console.print("\n[cyan]Testing search with similarity scores:[/cyan]")
         search_result = self.run_cli_command([
             "phase2", "search-text", "family activities",
             "--limit", "3",
@@ -187,14 +185,14 @@ class SpecComplianceTester:
             except Exception as e:
                 console.print(f"⚠️ [yellow]Warning:[/yellow] Could not display similarity scores: {e}")
         else:
-            console.print(f"❌ [red]Failed:[/red] Search with similarity scores")
+            console.print("❌ [red]Failed:[/red] Search with similarity scores")
     
     def test_requirement_4_labeler_system(self):
         """Test Requirement 4: Labeler system for eval set generation."""
         console.print(Panel("[bold blue]Requirement 4: Labeler System for Eval Set[/bold blue]", title="Spec Compliance Test"))
         
         # Test labeler system with sample data
-        console.print(f"\n[cyan]Testing Labeler System:[/cyan]")
+        console.print("\n[cyan]Testing Labeler System:[/cyan]")
         
         # Create sample embedding and search data for labeler
         sample_embedding = {
@@ -248,7 +246,7 @@ class SpecComplianceTester:
                 with open(f"{self.output_dir}/labeler_eval_set.json") as f:
                     labeler_data = json.load(f)
                 
-                console.print(f"📊 [cyan]Labeler Eval Set Results:[/cyan]")
+                console.print("📊 [cyan]Labeler Eval Set Results:[/cyan]")
                 console.print(f"   Labels: {labeler_data.get('labels', [])}")
                 console.print(f"   Confidence: {labeler_data.get('confidence', [])}")
                 console.print(f"   Categories: {labeler_data.get('categories', [])}")
@@ -256,14 +254,14 @@ class SpecComplianceTester:
             except Exception as e:
                 console.print(f"⚠️ [yellow]Warning:[/yellow] Could not load labeler results: {e}")
         else:
-            console.print(f"❌ [red]Failed:[/red] Labeler system")
+            console.print("❌ [red]Failed:[/red] Labeler system")
     
     def test_requirement_5_text_metadata(self):
         """Test Requirement 5: Text metadata system for semantically searchable metadata."""
         console.print(Panel("[bold blue]Requirement 5: Text Metadata System[/bold blue]", title="Spec Compliance Test"))
         
         # Test metadata generation
-        console.print(f"\n[cyan]Testing Text Metadata Generation:[/cyan]")
+        console.print("\n[cyan]Testing Text Metadata Generation:[/cyan]")
         
         sample_text = {
             "text": "A family enjoying a picnic in the park on a sunny afternoon. Children are playing while adults are setting up food on a blanket. The scene shows outdoor family activities with natural lighting and a relaxed atmosphere.",
@@ -288,7 +286,7 @@ class SpecComplianceTester:
                 with open(f"{self.output_dir}/text_metadata.json") as f:
                     metadata = json.load(f)
                 
-                console.print(f"📊 [cyan]Text Metadata Results:[/cyan]")
+                console.print("📊 [cyan]Text Metadata Results:[/cyan]")
                 console.print(f"   Summary: {metadata.get('summary', 'N/A')}")
                 console.print(f"   Keywords: {metadata.get('keywords', [])}")
                 console.print(f"   Categories: {metadata.get('categories', [])}")
@@ -298,14 +296,14 @@ class SpecComplianceTester:
             except Exception as e:
                 console.print(f"⚠️ [yellow]Warning:[/yellow] Could not load metadata results: {e}")
         else:
-            console.print(f"❌ [red]Failed:[/red] Text metadata system")
+            console.print("❌ [red]Failed:[/red] Text metadata system")
     
     def test_asset_processing(self):
         """Test processing of actual interview assets."""
         console.print(Panel("[bold blue]Asset Processing Test[/bold blue]", title="Spec Compliance Test"))
         
         # Process live-action assets
-        console.print(f"\n[cyan]Processing Live-Action Assets:[/cyan]")
+        console.print("\n[cyan]Processing Live-Action Assets:[/cyan]")
         live_action_files = list(self.live_action_dir.glob("*.mp4"))
         
         for i, video_file in enumerate(live_action_files[:3], 1):  # Test first 3 files
@@ -335,7 +333,7 @@ class SpecComplianceTester:
                 console.print(f"❌ [red]Failed:[/red] {video_file.name} validation")
         
         # Process animation assets
-        console.print(f"\n[cyan]Processing Animation Assets:[/cyan]")
+        console.print("\n[cyan]Processing Animation Assets:[/cyan]")
         animation_files = list(self.animations_dir.glob("*.mp4"))
         
         for i, video_file in enumerate(animation_files[:3], 1):  # Test first 3 files

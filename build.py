@@ -5,7 +5,6 @@ Build script for creating an executable of the Twelve Labs Single Asset Process 
 
 import subprocess
 import sys
-from pathlib import Path
 
 
 def main():

@@ -6,9 +6,7 @@ This script demonstrates how to use the CLI programmatically
 and shows the complete data flow through all phases.
 """
 
-import json
 import subprocess
-import sys
 from pathlib import Path
 
 
