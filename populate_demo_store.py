@@ -16,6 +16,8 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
+from twelve_labs_sa.services import VideoService, EmbedAPIService, GenerateAPIService, SearchAPIService
+
 console = Console()
 
 
@@ -108,11 +110,11 @@ class DemoStorePopulator:
                 console.print(f"❌ [red]Failed to validate {video_file.name}: {result.get('error', 'Unknown error')}[/red]")
                 return False
             
-            # Phase 2: API Calls (simulated for demo)
+            # Phase 2: API Calls using real Twelve Labs APIs
             console.print(f"✅ [green]Validated {video_file.name}[/green]")
             
-            # Create simulated API responses for demo purposes
-            self.create_simulated_api_responses(asset_id, asset_type)
+            # Create API responses using real Twelve Labs APIs
+            self.create_api_responses(asset_id, asset_type, video_file)
             
             # Phase 3: Content Processing
             self.process_content_phase(asset_id)
@@ -127,44 +129,46 @@ class DemoStorePopulator:
             console.print(f"❌ [red]Error processing {video_file.name}: {e}[/red]")
             return False
     
-    def create_simulated_api_responses(self, asset_id: str, asset_type: str):
-        """Create simulated API responses for demo purposes."""
-        # Simulate embedding response
-        embedding_data = {
-            "embedding": [0.1, 0.5, -0.3, 0.8, -0.2, 0.6] * 256,  # 1536 dimensions
-            "model": "embed-english-v1",
-            "dimensions": 1536,
-            "video_id": asset_id
-        }
-        
-        # Simulate search response
-        search_data = {
-            "results": [
-                {"video_id": f"similar_{asset_type}_1", "score": 0.85, "text": f"{asset_type} content scene"},
-                {"video_id": f"similar_{asset_type}_2", "score": 0.72, "text": f"{asset_type} activities"},
-                {"video_id": f"similar_{asset_type}_3", "score": 0.68, "text": f"{asset_type} presentation"}
-            ],
-            "total": 3,
-            "page": 1,
-            "limit": 3
-        }
-        
-        # Simulate generate response
-        generate_data = {
-            "text": f"A {asset_type} video showing professional content with clear presentation and engaging visuals",
-            "model": "generate-english-v1",
-            "video_id": asset_id
-        }
-        
-        # Save simulated data
-        with open(f"{self.output_dir}/{asset_id}_embedding.json", "w") as f:
-            json.dump(embedding_data, f, indent=2)
-        
-        with open(f"{self.output_dir}/{asset_id}_search.json", "w") as f:
-            json.dump(search_data, f, indent=2)
-        
-        with open(f"{self.output_dir}/{asset_id}_generate.json", "w") as f:
-            json.dump(generate_data, f, indent=2)
+    def create_api_responses(self, asset_id: str, asset_type: str, video_file: Path):
+        """Create API responses using real Twelve Labs SDK."""
+        try:
+            # Initialize services
+            video_service = VideoService()
+            embed_service = EmbedAPIService()
+            search_service = SearchAPIService()
+            generate_service = GenerateAPIService()
+            
+            # Upload video to Twelve Labs
+            console.print(f"📤 Uploading {video_file.name} to Twelve Labs...")
+            video_metadata = video_service.upload_video(str(video_file), video_file.name)
+            
+            # Wait for processing
+            console.print(f"⏳ Processing video {video_metadata.video_id}...")
+            if not video_service.wait_for_processing(video_metadata.video_id):
+                console.print(f"[red]❌ Failed to process video {video_file.name}[/red]")
+                return False
+            
+            # Generate embedding
+            console.print(f"🔢 Generating embedding for {video_metadata.video_id}...")
+            embedding = embed_service.create_embedding(video_metadata.video_id)
+            
+            # Perform search
+            console.print(f"🔍 Searching for similar content...")
+            search_results = search_service.search_videos(f"{asset_type} content", limit=3)
+            
+            # Generate text description
+            console.print(f"📝 Generating text description...")
+            generated_text = generate_service.generate_text(
+                video_metadata.video_id, 
+                f"Describe the content of this {asset_type} video"
+            )
+            
+            console.print(f"✅ [green]API responses created for {video_file.name}[/green]")
+            return True
+            
+        except Exception as e:
+            console.print(f"[red]❌ Error creating API responses for {video_file.name}: {e}[/red]")
+            return False
     
     def process_content_phase(self, asset_id: str):
         """Process content through labeler and metadata generator."""
@@ -261,7 +265,7 @@ class DemoStorePopulator:
         
         console.print("🎯 This script will populate the demo vector store with real test assets.")
         console.print("📁 Source: resources/assets/sa_interview_assets/")
-        console.print("💾 Target: Demo vector store with simulated API responses")
+        console.print("💾 Target: Demo vector store with real Twelve Labs API responses")
         
         # Process live-action assets
         self.process_live_action_assets()

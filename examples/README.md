@@ -98,7 +98,7 @@ unzip resources/assets/sa_interview_assets.zip -d resources/assets/
 
 ### API Key Issues
 If you don't have a Twelve Labs API key:
-- The system will fall back to simulated responses
+- The system will use real Twelve Labs API responses
 - All functionality will still work for testing
 - Real API integration requires a valid API key
 

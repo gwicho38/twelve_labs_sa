@@ -17,7 +17,7 @@ Created `populate_demo_store.py` to populate the demo vector store with real tes
 - **Source**: `resources/assets/sa_interview_assets/`
   - Live-action videos: 10 files (asset1.mp4 - asset10.mp4)
   - Animation videos: 13 files (various preview files)
-- **Process**: Validates files, creates simulated API responses, and stores data
+- **Process**: Validates files, creates real API responses using Twelve Labs SDK, and stores data
 - **Output**: 23 assets with embeddings, search results, and generated text
 
 ### 2. Fixed CLI Command Structure

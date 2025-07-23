@@ -77,7 +77,7 @@ output/                 # Data export operations
 ### 5. **Configuration & Testing**
 ```
 config/                 # Configuration management
-└── mode                # Check simulation mode
+└── mode                # Check API configuration mode
 
 test/                   # Testing operations
 ├── search              # Test search functionality

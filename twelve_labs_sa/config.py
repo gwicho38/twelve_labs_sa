@@ -12,17 +12,14 @@ class Config:
     """Configuration class for Twelve Labs API."""
     
     # API Configuration
-    API_KEY: str = os.getenv("TWELVE_LABS_API_KEY", "tlk_2TW8RSN1DK2JH220EPXZH39WPBVW")
+    API_KEY: str = os.getenv("TWELVE_LABS_API_KEY", "")
     BASE_URL: str = "https://api.twelvelabs.io/v1.3"
-    
-    # Simulation mode - set to True for simulated API calls, False for real API calls
-    SIMULATION_MODE: bool = os.getenv("TWELVE_LABS_SIMULATION_MODE", "true").lower() == "true"
     
     # Storage Configuration - LanceDB is now the default
     USE_LANCEDB: bool = os.getenv("TWELVE_LABS_USE_LANCEDB", "true").lower() == "true"
     
     # Default settings
-    DEFAULT_MODEL: str = "embed-english-v1"
+    DEFAULT_MODEL: str = "marengo2.7"
     DEFAULT_INDEX_ID: str = "existing_assets"
     
     # Processing settings
@@ -39,30 +36,22 @@ class Config:
     
     # Available models
     MODELS = {
-        "embed": ["embed-english-v1", "embed-multilingual-v1"],
-        "generate": ["generate-english-v1", "generate-multilingual-v1"],
-        "search": ["search-english-v1", "search-multilingual-v1"]
+        "embed": ["Marengo-retrieval-2.6"],
+        "generate": ["pegasus1.2"],
+        "search": ["marengo2.7"]
     }
     
     @classmethod
     def get_api_key(cls) -> str:
         """Get the API key."""
+        if not cls.API_KEY:
+            raise ValueError("TWELVE_LABS_API_KEY environment variable is not set. Please set your API key.")
         return cls.API_KEY
     
     @classmethod
     def validate_api_key(cls) -> bool:
         """Validate that API key is set."""
         return bool(cls.API_KEY and cls.API_KEY.startswith("tlk_"))
-    
-    @classmethod
-    def is_simulation_mode(cls) -> bool:
-        """Check if simulation mode is enabled."""
-        return cls.SIMULATION_MODE
-    
-    @classmethod
-    def set_simulation_mode(cls, enabled: bool) -> None:
-        """Set simulation mode."""
-        cls.SIMULATION_MODE = enabled
     
     @classmethod
     def use_lancedb(cls) -> bool:

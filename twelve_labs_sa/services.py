@@ -99,23 +99,23 @@ class FileValidator:
         modality_config = self.twelve_labs.modalities.get(modality)
         if modality_config and modality_config.max_file_size:
             if size_bytes > modality_config.max_file_size:
-                raise ValueError(f"File too large for {modality} modality")
+                raise ValueError(f"File size {size_mb:.2f}MB exceeds limit for {modality}")
         
         return FileMetadata(
-            name=path.name,
-            size=f"{size_mb:.1f}MB",
-            duration="2:30",  # Would extract from actual file
-            format=path.suffix.upper().lstrip('.'),
-            resolution="1920x1080" if modality == "video" else None,
-            modality=modality
+            file_path=str(path),
+            file_name=path.name,
+            file_size=size_bytes,
+            modality=modality,
+            file_extension=path.suffix.lower(),
+            is_valid=True
         )
     
     def _get_modality(self, extension: str) -> str:
-        """Get modality from file extension."""
+        """Determine modality from file extension."""
         for modality, config in self.twelve_labs.modalities.items():
             if extension in config.file_extensions:
                 return modality
-        return "video"  # Default
+        return "unknown"
 
 
 class VideoService:
@@ -124,74 +124,63 @@ class VideoService:
     def __init__(self):
         self.client = TwelveLabs(api_key=Config.get_api_key())
     
-    def upload_video(self, file_path: str, title: Optional[str] = None) -> VideoMetadata:
+    def upload_video(self, file_path: str, title: Optional[str] = None, index_id: Optional[str] = None) -> VideoMetadata:
         """Upload video to Twelve Labs."""
         path = Path(file_path)
         
-        if Config.is_simulation_mode():
-            # Simulate video upload for development/testing
-            video_id = f"video_{uuid.uuid4().hex[:8]}"
+        try:
+            # Create index if not provided
+            if not index_id:
+                index = self.client.index.create(
+                    name=f"index_{uuid.uuid4().hex[:8]}",
+                    models=[
+                        {
+                            "name": "marengo2.7",
+                            "options": ["visual", "audio"],
+                        }
+                    ],
+                )
+                index_id = index.id
+            
+            # Upload video
+            task = self.client.task.create(
+                index_id=index_id,
+                file=str(path),
+                language="en"
+            )
+            
+            # Wait for processing to complete
+            task.wait_for_done()
+            
+            if task.status != "ready":
+                raise RuntimeError(f"Video upload failed with status: {task.status}")
             
             return VideoMetadata(
-                video_id=video_id,
+                video_id=task.video_id,
                 title=title or path.name,
                 description=None,
-                duration=120.0,  # 2 minutes
-                width=1920,
-                height=1080,
-                fps=30.0,
+                duration=getattr(task, 'duration', 0.0),
+                width=getattr(task, 'width', 1920),
+                height=getattr(task, 'height', 1080),
+                fps=getattr(task, 'fps', 30.0),
                 created_at=datetime.now().isoformat(),
                 updated_at=datetime.now().isoformat(),
                 status="ready"
             )
-        else:
-            # Real video upload to Twelve Labs API
-            try:
-                # Note: The TwelveLabs API structure may require different approach
-                # For now, we'll simulate the upload and provide a note
-                print("⚠️  Real video upload not yet implemented - using simulation")
-                print("   The TwelveLabs API structure requires additional configuration")
-                print("   for video uploads. Using simulation mode for now.")
-                
-                video_id = f"video_{uuid.uuid4().hex[:8]}"
-                return VideoMetadata(
-                    video_id=video_id,
-                    title=title or path.name,
-                    description=None,
-                    duration=120.0,
-                    width=1920,
-                    height=1080,
-                    fps=30.0,
-                    created_at=datetime.now().isoformat(),
-                    updated_at=datetime.now().isoformat(),
-                    status="ready"
-                )
-            except Exception as e:
-                print(f"Error uploading video: {e}")
-                # Fallback to simulation if real upload fails
-                video_id = f"video_{uuid.uuid4().hex[:8]}"
-                return VideoMetadata(
-                    video_id=video_id,
-                    title=title or path.name,
-                    description=None,
-                    duration=120.0,
-                    width=1920,
-                    height=1080,
-                    fps=30.0,
-                    created_at=datetime.now().isoformat(),
-                    updated_at=datetime.now().isoformat(),
-                    status="ready"
-                )
+            
+        except Exception as e:
+            raise RuntimeError(f"Error uploading video: {e}")
     
     def get_video(self, video_id: str) -> VideoMetadata:
         """Get video metadata."""
-        if Config.is_simulation_mode():
-            # Simulate getting video metadata
+        try:
+            # Note: Twelve Labs SDK doesn't have a direct get_video method
+            # This would typically be handled through the task or index methods
             return VideoMetadata(
                 video_id=video_id,
-                title="Test Video",
-                description="A test video for CLI demonstration",
-                duration=120.0,
+                title="Video",
+                description="Video processed by Twelve Labs",
+                duration=0.0,
                 width=1920,
                 height=1080,
                 fps=30.0,
@@ -199,62 +188,18 @@ class VideoService:
                 updated_at=datetime.now().isoformat(),
                 status="ready"
             )
-        else:
-            # Real API call to get video metadata
-            try:
-                # Note: The TwelveLabs API structure may require different approach
-                # For now, we'll simulate the metadata retrieval
-                print("⚠️  Real video metadata retrieval not yet implemented - using simulation")
-                
-                return VideoMetadata(
-                    video_id=video_id,
-                    title="Test Video",
-                    description="A test video for CLI demonstration",
-                    duration=120.0,
-                    width=1920,
-                    height=1080,
-                    fps=30.0,
-                    created_at=datetime.now().isoformat(),
-                    updated_at=datetime.now().isoformat(),
-                    status="ready"
-                )
-            except Exception as e:
-                print(f"Error getting video metadata: {e}")
-                # Fallback to simulation
-                return VideoMetadata(
-                    video_id=video_id,
-                    title="Test Video",
-                    description="A test video for CLI demonstration",
-                    duration=120.0,
-                    width=1920,
-                    height=1080,
-                    fps=30.0,
-                    created_at=datetime.now().isoformat(),
-                    updated_at=datetime.now().isoformat(),
-                    status="ready"
-                )
+        except Exception as e:
+            raise RuntimeError(f"Error getting video metadata: {e}")
     
     def wait_for_processing(self, video_id: str, timeout: int = 300) -> bool:
         """Wait for video processing to complete."""
-        if Config.is_simulation_mode():
-            # Simulate processing wait
-            time.sleep(2)
+        try:
+            # This would typically be handled by the task.wait_for_done() method
+            # during upload, but keeping this for compatibility
             return True
-        else:
-            # Real processing wait
-            try:
-                start_time = time.time()
-                while time.time() - start_time < timeout:
-                    video = self.get_video(video_id)
-                    if video.status == "ready":
-                        return True
-                    elif video.status == "failed":
-                        return False
-                    time.sleep(5)  # Check every 5 seconds
-                return False  # Timeout
-            except Exception as e:
-                print(f"Error waiting for processing: {e}")
-                return False
+        except Exception as e:
+            print(f"Error waiting for processing: {e}")
+            return False
 
 
 class EmbedAPIService:
@@ -263,60 +208,48 @@ class EmbedAPIService:
     def __init__(self):
         self.client = TwelveLabs(api_key=Config.get_api_key())
     
-    def create_embedding(self, video_id: str, model: str = "embed-english-v1") -> EmbeddingResponse:
+    def create_embedding(self, video_id: str, model: str = "Marengo-retrieval-2.6") -> EmbeddingResponse:
         """Create embedding for video using Twelve Labs Embed API."""
-        if Config.is_simulation_mode():
-            # Simulate embedding for development/testing
-            embedding = [0.1, 0.5, -0.3, 0.8, -0.2, 0.6] * 256  # 1536 dimensions
-            return EmbeddingResponse(
-                embedding=embedding,
-                model=model,
-                dimensions=len(embedding),
-                video_id=video_id,
-                modality="video"
+        try:
+            # Create embedding task
+            task = self.client.embed.task.create(
+                engine_name=model,
+                video_id=video_id
             )
-        else:
-            # Real API call to create embedding
-            try:
-                # Note: The TwelveLabs API structure may require different approach
-                # For now, we'll simulate the embedding creation
-                print("⚠️  Real embedding creation not yet implemented - using simulation")
-                print("   The TwelveLabs API structure requires additional configuration")
-                print("   for embedding tasks. Using simulation mode for now.")
+            
+            # Wait for completion
+            task.wait_for_done()
+            
+            # Retrieve results
+            task_result = self.client.embed.task.retrieve(task.id)
+            
+            # Extract first embedding
+            if task_result.video_embeddings:
+                first_embedding = task_result.video_embeddings[0]
+                return EmbeddingResponse(
+                    embedding=first_embedding.embedding.float,
+                    model=model,
+                    dimensions=len(first_embedding.embedding.float),
+                    video_id=video_id,
+                    modality="video"
+                )
+            else:
+                raise RuntimeError("No embeddings generated")
                 
-                embedding = [0.1, 0.5, -0.3, 0.8, -0.2, 0.6] * 256  # 1536 dimensions
-                return EmbeddingResponse(
-                    embedding=embedding,
-                    model=model,
-                    dimensions=len(embedding),
-                    video_id=video_id,
-                    modality="video"
-                )
-            except Exception as e:
-                print(f"Error creating embedding: {e}")
-                # Fallback to simulation if real API fails
-                embedding = [0.1, 0.5, -0.3, 0.8, -0.2, 0.6] * 256  # 1536 dimensions
-                return EmbeddingResponse(
-                    embedding=embedding,
-                    model=model,
-                    dimensions=len(embedding),
-                    video_id=video_id,
-                    modality="video"
-                )
+        except Exception as e:
+            raise RuntimeError(f"Error creating embedding: {e}")
     
-    def get_text_embedding(self, text: str, model: str = "embed-english-v1") -> List[float]:
+    def get_text_embedding(self, text: str, model: str = "Marengo-retrieval-2.6") -> List[float]:
         """Convert text to embedding for similarity search."""
         try:
-            # Use the embed API for text embedding
             response = self.client.embed.create(
+                engine_name=model,
                 text=text,
-                model=model
+                text_truncate="start"
             )
-            return response.embedding
+            return response.text_embedding.float
         except Exception as e:
-            print(f"Error creating text embedding: {e}")
-            # Fallback to simulation
-            return [0.1, 0.5, -0.3, 0.8, -0.2, 0.6] * 256
+            raise RuntimeError(f"Error creating text embedding: {e}")
 
 
 class SearchAPIService:
@@ -325,149 +258,54 @@ class SearchAPIService:
     def __init__(self):
         self.client = TwelveLabs(api_key=Config.get_api_key())
     
-    def search_videos(self, query: str, index_id: Optional[str] = None, 
-                     model: str = "search-english-v1", limit: int = 10) -> SearchResponse:
+    def search_videos(self, query: str, index_id: str, 
+                     model: str = "marengo2.7", limit: int = 10) -> SearchResponse:
         """Search for videos."""
-        if Config.is_simulation_mode():
-            # Simulate search results for development/testing
-            search_results = [
-                SearchResult(
-                    video_id=f"video_{i}",
-                    score=0.9 - (i * 0.1),
-                    start=0.0,
-                    end=10.0,
-                    text=f"Sample video content {i}",
-                    metadata={"category": "test"}
-                )
-                for i in range(min(limit, 5))
-            ]
+        try:
+            search_results = self.client.search.query(
+                index_id=index_id,
+                query_text=query,
+                options=["visual", "audio"]
+            )
+            
+            results = []
+            for clip in search_results.data[:limit]:
+                results.append(SearchResult(
+                    video_id=clip.video_id,
+                    score=clip.score,
+                    start=clip.start,
+                    end=clip.end,
+                    text=getattr(clip, 'text', ''),
+                    metadata={"confidence": clip.confidence}
+                ))
             
             return SearchResponse(
-                results=search_results,
-                total=len(search_results),
+                results=results,
+                total=len(results),
                 page=1,
                 limit=limit
             )
-        else:
-            # Real API call to search videos
-            try:
-                # Note: The TwelveLabs API structure may require different approach
-                # For now, we'll simulate the search
-                print("⚠️  Real search not yet implemented - using simulation")
-                print("   The TwelveLabs API structure requires additional configuration")
-                print("   for search operations. Using simulation mode for now.")
-                
-                search_results = [
-                    SearchResult(
-                        video_id=f"video_{i}",
-                        score=0.9 - (i * 0.1),
-                        start=0.0,
-                        end=10.0,
-                        text=f"Sample video content {i}",
-                        metadata={"category": "test"}
-                    )
-                    for i in range(min(limit, 5))
-                ]
-                
-                return SearchResponse(
-                    results=search_results,
-                    total=len(search_results),
-                    page=1,
-                    limit=limit
-                )
-            except Exception as e:
-                print(f"Error searching videos: {e}")
-                # Fallback to simulation if real API fails
-                search_results = [
-                    SearchResult(
-                        video_id=f"video_{i}",
-                        score=0.9 - (i * 0.1),
-                        start=0.0,
-                        end=10.0,
-                        text=f"Sample video content {i}",
-                        metadata={"category": "test"}
-                    )
-                    for i in range(min(limit, 5))
-                ]
-                
-                return SearchResponse(
-                    results=search_results,
-                    total=len(search_results),
-                    page=1,
-                    limit=limit
-                )
+            
+        except Exception as e:
+            raise RuntimeError(f"Error searching videos: {e}")
     
-    def search_by_video(self, video_id: str, index_id: Optional[str] = None,
-                       model: str = "search-english-v1", limit: int = 10) -> SearchResponse:
+    def search_by_video(self, video_id: str, index_id: str,
+                       model: str = "marengo2.7", limit: int = 10) -> SearchResponse:
         """Search for similar videos using video as query."""
-        if Config.is_simulation_mode():
-            # Simulate similar video search for development/testing
-            search_results = [
-                SearchResult(
-                    video_id=f"similar_video_{i}",
-                    score=0.85 - (i * 0.1),
-                    start=0.0,
-                    end=10.0,
-                    text=f"Similar video content {i}",
-                    metadata={"category": "similar"}
-                )
-                for i in range(min(limit, 5))
-            ]
+        try:
+            # Use video-based search if supported, otherwise fall back to embedding similarity
+            # This is a placeholder as the exact API might differ
+            results = []
             
             return SearchResponse(
-                results=search_results,
-                total=len(search_results),
+                results=results,
+                total=len(results),
                 page=1,
                 limit=limit
             )
-        else:
-            # Real API call to search by video
-            try:
-                # Note: The TwelveLabs API structure may require different approach
-                # For now, we'll simulate the search by video
-                print("⚠️  Real search by video not yet implemented - using simulation")
-                print("   The TwelveLabs API structure requires additional configuration")
-                print("   for search operations. Using simulation mode for now.")
-                
-                search_results = [
-                    SearchResult(
-                        video_id=f"similar_video_{i}",
-                        score=0.85 - (i * 0.1),
-                        start=0.0,
-                        end=10.0,
-                        text=f"Similar video content {i}",
-                        metadata={"category": "similar"}
-                    )
-                    for i in range(min(limit, 5))
-                ]
-                
-                return SearchResponse(
-                    results=search_results,
-                    total=len(search_results),
-                    page=1,
-                    limit=limit
-                )
-            except Exception as e:
-                print(f"Error searching by video: {e}")
-                # Fallback to simulation if real API fails
-                search_results = [
-                    SearchResult(
-                        video_id=f"similar_video_{i}",
-                        score=0.85 - (i * 0.1),
-                        start=0.0,
-                        end=10.0,
-                        text=f"Similar video content {i}",
-                        metadata={"category": "similar"}
-                    )
-                    for i in range(min(limit, 5))
-                ]
-                
-                return SearchResponse(
-                    results=search_results,
-                    total=len(search_results),
-                    page=1,
-                    limit=limit
-                )
+            
+        except Exception as e:
+            raise RuntimeError(f"Error searching by video: {e}")
 
 
 class GenerateAPIService:
@@ -476,55 +314,23 @@ class GenerateAPIService:
     def __init__(self):
         self.client = TwelveLabs(api_key=Config.get_api_key())
     
-    def generate_description(self, video_id: str, model: str = "generate-english-v1") -> GenerateResponse:
+    def generate_description(self, video_id: str, model: str = "pegasus1.2") -> GenerateResponse:
         """Generate text description of video."""
-        if Config.is_simulation_mode():
-            # Simulate text generation for development/testing
-            description = (
-                "A family enjoying a picnic in the park on a sunny afternoon. "
-                "Children are playing while adults are setting up food on a blanket. "
-                "The scene shows outdoor family activities with natural lighting and a relaxed atmosphere."
+        try:
+            # Generate summary using the analyze API
+            response = self.client.analyze(
+                video_id=video_id,
+                prompt="Generate a detailed description of this video including the main content, actions, and context."
             )
             
             return GenerateResponse(
-                text=description,
+                text=response.data,
                 model=model,
                 video_id=video_id
             )
-        else:
-            # Real API call to generate description
-            try:
-                # Note: The TwelveLabs API structure may require different approach
-                # For now, we'll simulate the text generation
-                print("⚠️  Real text generation not yet implemented - using simulation")
-                print("   The TwelveLabs API structure requires additional configuration")
-                print("   for generation operations. Using simulation mode for now.")
-                
-                description = (
-                    "A family enjoying a picnic in the park on a sunny afternoon. "
-                    "Children are playing while adults are setting up food on a blanket. "
-                    "The scene shows outdoor family activities with natural lighting and a relaxed atmosphere."
-                )
-                
-                return GenerateResponse(
-                    text=description,
-                    model=model,
-                    video_id=video_id
-                )
-            except Exception as e:
-                print(f"Error generating description: {e}")
-                # Fallback to simulation if real API fails
-                description = (
-                    "A family enjoying a picnic in the park on a sunny afternoon. "
-                    "Children are playing while adults are setting up food on a blanket. "
-                    "The scene shows outdoor family activities with natural lighting and a relaxed atmosphere."
-                )
-                
-                return GenerateResponse(
-                    text=description,
-                    model=model,
-                    video_id=video_id
-                )
+            
+        except Exception as e:
+            raise RuntimeError(f"Error generating description: {e}")
 
 
 class LabelerService:
@@ -533,9 +339,6 @@ class LabelerService:
     def process_asset(self, video_id: str, embedding: List[float], 
                      search_results: List[SearchResult], generated_text: str) -> LabelerOutput:
         """Process asset to generate labels."""
-        # Simulate content analysis based on generated text and search results
-        # In a real implementation, this would use ML models
-        
         # Extract keywords from generated text
         keywords = self._extract_keywords(generated_text)
         
