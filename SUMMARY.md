@@ -89,7 +89,7 @@ twelve_labs_sa/
 - **GenerateAPIService**: Text generation
 - **LabelerService**: Label generation
 - **MetadataGeneratorService**: Metadata processing
-- **DatabaseService**: Data storage simulation
+- **DatabaseService**: Data storage using LanceDB or file-based storage
 - **SearchIndexService**: Index creation
 
 ## 📊 CLI Commands
@@ -156,7 +156,7 @@ Raw File → Validation → Upload → API Calls → Processing → Storage → 
 
 ### **Tested Features**
 - ✅ File validation and modality detection
-- ✅ Video upload simulation
+- ✅ Video upload using Twelve Labs API
 - ✅ Embedding generation
 - ✅ Search operations (text and video)
 - ✅ Text generation

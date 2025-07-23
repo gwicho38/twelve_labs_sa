@@ -26,7 +26,7 @@
 - Fixed test eval command to prioritize file-based evaluation when files are provided
 - Created demo files for `demo_asset_001` to avoid live API calls
 - Updated Makefile commands to use file-based approach
-- **Fixed `make test` command** to use simulated data instead of live API calls
+- **Fixed `make test` command** to use real Twelve Labs API calls
 
 ## Technical Fixes
 
@@ -53,9 +53,9 @@ search_results = search_response.results
 ### Test All Command Fix
 **File**: `twelve_labs_sa/cli.py`
 **Changes**:
-- Replaced live API calls with simulated data in `test all` command
-- Used `SearchResponse` and `SearchResult` models for simulated search results
-- Used `EmbeddingResponse` and `GenerateResponse` models for simulated API responses
+- Updated `test all` command to use real Twelve Labs API calls
+- Used `SearchResponse` and `SearchResult` models for real search results from API
+- Used `EmbeddingResponse` and `GenerateResponse` models for real API responses
 - Eliminated all live API calls from test suite
 
 ### Improved Labeler Service
