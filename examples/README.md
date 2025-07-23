@@ -7,13 +7,17 @@ This directory contains example scripts and demonstrations using the real video 
 The project includes real video assets for testing and demonstration:
 
 ### Live-Action Videos
+
 Location: `resources/assets/sa_interview_assets/live-action/`
+
 - 10 professional video files (asset1.mp4 through asset10.mp4)
 - Sizes range from 9.2MB to 73MB
 - Content includes interviews, presentations, demonstrations, and testimonials
 
 ### Animation Videos
+
 Location: `resources/assets/sa_interview_assets/animations/`
+
 - 13 animation files with various styles and purposes
 - Sizes range from 43KB to 1.8MB
 - Content includes explainers, motion graphics, UI animations, and transitions
@@ -21,7 +25,9 @@ Location: `resources/assets/sa_interview_assets/animations/`
 ## 📋 Example Scripts
 
 ### `real_assets_demo.py`
+
 A comprehensive demonstration script that shows:
+
 - Processing single videos with both file-based and LanceDB storage
 - Batch processing of animation videos
 - LanceDB integration testing
@@ -29,6 +35,7 @@ A comprehensive demonstration script that shows:
 - Data export and inspection
 
 ### Usage
+
 ```bash
 # Run the demo script
 python examples/real_assets_demo.py
@@ -41,6 +48,7 @@ twelve-labs-sa batch process-batch resources/assets/sa_interview_assets/animatio
 ## 🧪 Testing with Real Assets
 
 ### Basic Testing
+
 ```bash
 # Test with a single live-action video
 twelve-labs-sa process-all resources/assets/sa_interview_assets/live-action/asset1.mp4
@@ -50,6 +58,7 @@ twelve-labs-sa process-all resources/assets/sa_interview_assets/animations/10322
 ```
 
 ### LanceDB Testing
+
 ```bash
 # Initialize LanceDB
 twelve-labs-sa lancedb init --use-lancedb
@@ -62,6 +71,7 @@ twelve-labs-sa test all --use-lancedb
 ```
 
 ### Batch Processing
+
 ```bash
 # Process all live-action videos
 twelve-labs-sa batch process-batch resources/assets/sa_interview_assets/live-action/ --use-lancedb
@@ -87,7 +97,9 @@ When running with real assets, you should see:
 ## 🔧 Troubleshooting
 
 ### Missing Assets
+
 If the video assets are not found:
+
 ```bash
 # Check if assets exist
 ls -la resources/assets/sa_interview_assets/
@@ -97,13 +109,17 @@ unzip resources/assets/sa_interview_assets.zip -d resources/assets/
 ```
 
 ### API Key Issues
+
 If you don't have a Twelve Labs API key:
+
 - The system will use real Twelve Labs API responses
 - All functionality will still work for testing
 - Real API integration requires a valid API key
 
 ### LanceDB Installation
+
 If LanceDB is not available:
+
 ```bash
 # Install with LanceDB support
 pip install twelve-labs-sa[lancedb]
@@ -122,8 +138,9 @@ pip install lancedb pyarrow
 ## 🎯 Use Cases
 
 These real assets are perfect for:
+
 - **Development testing**: Real file formats and sizes
 - **Performance benchmarking**: Actual processing times
 - **Content analysis**: Real video content for label generation
 - **Search testing**: Diverse content for similarity search
-- **Batch processing**: Multiple files for workflow testing 
+- **Batch processing**: Multiple files for workflow testing
